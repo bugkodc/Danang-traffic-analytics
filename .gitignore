@@ -43,6 +43,8 @@ data/interim/
 *.mkv
 *.osm.pbf
 *.osm.xml
+*.graphml
+data/raw/osm/cache/
 
 
 # =============================================================

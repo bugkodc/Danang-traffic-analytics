@@ -25,8 +25,20 @@ name: Thu thap du lieu TomTom
 
 on:
   schedule:
-    - cron: '5 * * * *'     # moi gio, phut thu 5
-  workflow_dispatch:        # bam chay tay de test
+    - cron: '5 * * * *'     # moi gio, phut thu 5 -> mac dinh 3 mau/lan
+
+  # Bam chay tay. Co tham so de mot lan bam phu duoc NHIEU GIO,
+  # dung khi bo lap lich cua GitHub khong hoat dong.
+  workflow_dispatch:
+    inputs:
+      so_lan:
+        description: 'So lan lay mau trong mot lan chay (22 lan x 15 phut = ~5,5 gio)'
+        required: false
+        default: '22'
+      nghi_phut:
+        description: 'Nghi bao nhieu phut giua hai lan lay mau'
+        required: false
+        default: '15'
 
   # PHUONG AN DU PHONG - cong kich hoat tu ben ngoai.
   # GitHub ghi ro su kien schedule co the bi hoan hoac bo qua khi he thong
@@ -50,7 +62,7 @@ concurrency:
 jobs:
   thu-thap:
     runs-on: ubuntu-latest
-    timeout-minutes: 45     # job chay ~31 phut, dat nguong an toan
+    timeout-minutes: 350    # du cho 22 lan x 15 phut khi bam tay (gioi han GitHub la 360)
     permissions:
       contents: write       # can quyen ghi de commit du lieu nguoc lai repo
 
@@ -64,17 +76,23 @@ jobs:
       - name: Cai thu vien
         run: pip install --quiet requests pandas pyarrow
 
-      - name: Goi API 3 lan, cach nhau 15 phut
+      - name: Goi API nhieu lan trong mot lan chay
         env:
           TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
+          # Chay theo lich  -> inputs rong -> mac dinh 3 lan x 15 phut (~31 phut)
+          # Bam chay tay     -> lay theo tham so nguoi dung nhap
+          SO_LAN:    ${{ github.event.inputs.so_lan    || '3'  }}
+          NGHI_PHUT: ${{ github.event.inputs.nghi_phut || '15' }}
         working-directory: ingest/tomtom
         run: |
-          for i in 1 2 3; do
-            echo "--- Lan lay mau $i/3 ---"
+          echo "Se lay $SO_LAN mau, cach nhau $NGHI_PHUT phut."
+          echo "Tong thoi gian du kien: $(( (SO_LAN - 1) * NGHI_PHUT )) phut."
+          echo ""
+          for i in $(seq 1 "$SO_LAN"); do
+            echo "--- Lan lay mau $i/$SO_LAN  ($(TZ=Asia/Ho_Chi_Minh date '+%H:%M') gio VN) ---"
             python collect.py || echo "Lan $i that bai, bo qua va di tiep"
-            if [ $i -lt 3 ]; then
-              echo "Cho 15 phut den lan tiep theo..."
-              sleep 900
+            if [ "$i" -lt "$SO_LAN" ]; then
+              sleep $(( NGHI_PHUT * 60 ))
             fi
           done
 

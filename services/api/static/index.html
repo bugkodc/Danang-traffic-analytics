@@ -49,6 +49,9 @@
 <header>
   <h1>Đà Nẵng Traffic Analytics</h1>
   <span class="sub" id="tomtat">đang tải…</span>
+  <span class="sub" id="nguon-ban-do" style="margin-left:auto">…</span>
+  <button onclick="chanDoanMang()" style="background:#1e2936;color:var(--text);border:1px solid var(--line);border-radius:5px;padding:4px 11px;cursor:pointer;font-size:12px">Kiểm tra mạng</button>
+  <button id="nut-3d" onclick="bat3D()" style="display:none;background:#1e2936;color:var(--text);border:1px solid var(--line);border-radius:5px;padding:4px 11px;cursor:pointer;font-size:12px">Xem 3D</button>
 </header>
 
 <main>
@@ -95,29 +98,147 @@ async function api(p){
   return r.json();
 }
 
-// ---- Bản đồ: tạo riêng, KHÔNG chặn phần dữ liệu nếu thất bại ----
-function taoBanDo(){
+// ---- Bản đồ: nhiều tầng dự phòng, không phụ thuộc một nguồn ----
+// Mạng ở Việt Nam hay chặn/chậm với một số CDN. Thay vì phụ thuộc một file
+// style bên ngoài, ta thử lần lượt nhiều nguồn và báo rõ nguồn nào đang dùng.
+
+const NGUON = [
+  { ten:'OpenFreeMap (vector, có 3D)', ba_chieu:true,
+    style:'https://tiles.openfreemap.org/styles/positron' },
+  { ten:'CARTO (vector, có 3D)', ba_chieu:true,
+    style:'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json' },
+  { ten:'OpenStreetMap (raster, phẳng)', ba_chieu:false, style:{
+      version:8,
+      sources:{ osm:{ type:'raster', tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                      tileSize:256, attribution:'© OpenStreetMap contributors' } },
+      layers:[{ id:'osm', type:'raster', source:'osm' }]
+  }}
+];
+
+let nguonHienTai = -1, daVeXong = false;
+
+function ganTrangThai(txt, loi){
+  const el = document.getElementById('nguon-ban-do');
+  if (el){ el.textContent = txt; el.style.color = loi ? '#f87171' : 'var(--dim)'; }
+}
+
+function thuNguon(i){
   const hop = document.getElementById('map-loi');
-  if (typeof maplibregl === 'undefined'){
+  if (i >= NGUON.length){
     hop.style.display = 'flex';
-    hop.innerHTML = 'Không tải được thư viện bản đồ MapLibre từ CDN.<br>'
-      + 'Kiểm tra kết nối mạng, hoặc mạng của bạn có thể đang chặn unpkg.com.<br><br>'
-      + '<b style="color:#e6edf3">Phần dữ liệu bên phải vẫn hoạt động bình thường.</b>';
+    hop.innerHTML = 'Không tải được bản đồ từ bất kỳ nguồn nào.<br>'
+      + 'Mạng của bạn có thể đang chặn các máy chủ bản đồ.<br><br>'
+      + '<b style="color:#e6edf3">Phần dữ liệu bên phải vẫn hoạt động đầy đủ.</b>';
+    ganTrangThai('không tải được bản đồ', true);
     return;
   }
+  const n = NGUON[i];
+  nguonHienTai = i;
+  ganTrangThai('đang thử: ' + n.ten);
+
+  if (map){ try{ map.remove(); }catch(e){} map = null; }
+  daVeXong = false;
+
   try{
     map = new maplibregl.Map({
-      container:'map',
-      style:'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-      center:[108.2200,16.0600], zoom:12
+      container:'map', style:n.style,
+      center:[108.2200,16.0600], zoom:12.5, pitch:0, bearing:0,
+      attributionControl:{compact:true}
     });
-    map.addControl(new maplibregl.NavigationControl(),'top-right');
-    map.on('error', e => console.warn('Lỗi bản đồ:', e && e.error));
-    map.on('load', () => veMarker());
-  }catch(e){
-    hop.style.display = 'flex';
-    hop.textContent = 'Không khởi tạo được bản đồ: ' + e.message;
+  }catch(e){ return thuNguon(i+1); }
+
+  // Cho lau hon: mang cham khong co nghia la hong.
+  const hetGio = setTimeout(()=>{ if(!daVeXong){ console.warn('Qua han:', n.ten); thuNguon(i+1); } }, 25000);
+
+  map.on('error', e => {
+    const msg = String(e && e.error && e.error.message || '');
+    const st  = e && e.error && e.error.status;
+    console.warn('Loi ban do (' + n.ten + '):', msg || st);
+    // Chi doi nguon khi style KHONG tai duoc. Loi tung o tile le te thi bo qua.
+    const styleHong = !daVeXong && (st === 403 || st === 404 ||
+                       /failed to fetch|networkerror|load.*style|style.*load/i.test(msg));
+    if (styleHong){ clearTimeout(hetGio); thuNguon(i+1); }
+  });
+
+  map.on('load', ()=>{
+    daVeXong = true; clearTimeout(hetGio);
+    document.getElementById('map-loi').style.display = 'none';
+    ganTrangThai('nguồn: ' + n.ten);
+    map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
+    if (n.ba_chieu) themToaNha();
+    veMarker();
+  });
+}
+
+// Khối 3D: dựng nhà theo chiều cao có trong dữ liệu vector
+function themToaNha(){
+  try{
+    const lop = map.getStyle().layers.find(l => l.type==='symbol' && l.layout && l.layout['text-field']);
+    if (map.getSource('openmaptiles') || map.getSource('carto')){
+      const src = map.getSource('openmaptiles') ? 'openmaptiles' : 'carto';
+      map.addLayer({
+        id:'toa-nha-3d', source:src, 'source-layer':'building',
+        type:'fill-extrusion', minzoom:14,
+        paint:{
+          'fill-extrusion-color':'#2a3441',
+          'fill-extrusion-height':['coalesce',['get','render_height'],['get','height'],12],
+          'fill-extrusion-base':['coalesce',['get','render_min_height'],0],
+          'fill-extrusion-opacity':0.75
+        }
+      }, lop && lop.id);
+      document.getElementById('nut-3d').style.display = 'inline-block';
+    }
+  }catch(e){ console.warn('Không dựng được khối 3D:', e.message); }
+}
+
+function bat3D(){
+  if (!map) return;
+  const dang3D = map.getPitch() > 10;
+  map.easeTo({ pitch: dang3D ? 0 : 55, bearing: dang3D ? 0 : -20, zoom: dang3D ? 12.5 : 15, duration: 900 });
+  document.getElementById('nut-3d').textContent = dang3D ? 'Xem 3D' : 'Xem phẳng';
+}
+
+// Chẩn đoán: thử tải thật từng nguồn, báo nguồn nào mạng của bạn vào được.
+async function chanDoanMang(){
+  const dich = [
+    ['Thư viện MapLibre (unpkg)', 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'],
+    ['Style OpenFreeMap',        'https://tiles.openfreemap.org/styles/positron'],
+    ['Tile OpenFreeMap',         'https://tiles.openfreemap.org/planet/20250101_001001_pt/12/3269/1925.pbf'],
+    ['Style CARTO',              'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'],
+    ['Tile CARTO',               'https://basemaps.cartocdn.com/vector/carto.streets/v1/12/3269/1925.mvt'],
+    ['Tile OpenStreetMap',       'https://tile.openstreetmap.org/12/3269/1925.png'],
+  ];
+  const el = document.getElementById('aside');
+  el.innerHTML = '<h2>Chẩn đoán mạng</h2><div id="cd" style="font-size:12px;line-height:2">đang thử…</div>';
+  const ra = [];
+  for (const [ten, url] of dich){
+    const t0 = performance.now();
+    let kq;
+    try{
+      await fetch(url, {mode:'no-cors', cache:'no-store'});
+      kq = '<span style="color:#22c55e">✓ vào được</span> ' + Math.round(performance.now()-t0) + 'ms';
+    }catch(e){
+      kq = '<span style="color:#f87171">✗ bị chặn</span>';
+    }
+    ra.push(`<div>${ten}<br><span style="color:var(--dim)">${kq}</span></div>`);
+    document.getElementById('cd').innerHTML = ra.join('');
   }
+  ra.push('<br><div style="color:var(--dim)">Gửi ảnh chụp bảng này nếu bản đồ vẫn trắng.<br>'
+        + '<a href="/" style="color:#3b82f6">Tải lại trang</a></div>');
+  document.getElementById('cd').innerHTML = ra.join('');
+}
+
+function taoBanDo(){
+  if (typeof maplibregl === 'undefined'){
+    const hop = document.getElementById('map-loi');
+    hop.style.display = 'flex';
+    hop.innerHTML = 'Không tải được thư viện MapLibre từ CDN.<br>'
+      + 'Mạng của bạn có thể đang chặn unpkg.com.<br><br>'
+      + '<b style="color:#e6edf3">Phần dữ liệu bên phải vẫn hoạt động đầy đủ.</b>';
+    ganTrangThai('thiếu thư viện bản đồ', true);
+    return;
+  }
+  thuNguon(0);
 }
 
 // ---- Dữ liệu: chạy độc lập, luôn thử ----
@@ -163,7 +284,7 @@ async function taiDoan(ts){
 }
 
 function veMarker(){
-  if (!map || !map.loaded()) return;
+  if (!map || !daVeXong) return;
   markers.forEach(m => m.remove()); markers = [];
   doanHienTai.forEach(s => {
     const el = document.createElement('div');

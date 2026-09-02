@@ -4,21 +4,24 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Đà Nẵng Traffic Analytics</title>
-<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style>
   :root{
     --bg:#0f1419; --panel:#171d26; --line:#242c38; --text:#e6edf3; --dim:#8b98a8;
     --m1:#22c55e; --m2:#eab308; --m3:#f97316; --m4:#ef4444; --m0:#4b5563;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column}
-  header{padding:12px 18px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  body{font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  header{padding:12px 18px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
   header h1{font-size:16px;font-weight:600}
   header .sub{color:var(--dim);font-size:12px}
+  header button{background:#1e2936;color:var(--text);border:1px solid var(--line);border-radius:5px;padding:4px 11px;cursor:pointer;font-size:12px}
+  header button:hover{border-color:#3b82f6}
   main{flex:1;display:flex;min-height:0}
-  #map{flex:1;position:relative}
-  #map-loi{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:30px;text-align:center;color:var(--dim);font-size:13px;line-height:1.7}
+  #khung-bd{flex:1;position:relative;background:#0b0f14;cursor:grab;overflow:hidden}
+  #bando{display:block}
+  #chu-thich-bd{position:absolute;left:12px;bottom:10px;font-size:11px;color:var(--dim);pointer-events:none}
+  #dieu-khien{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:4px}
+  #dieu-khien button{width:30px;height:30px;padding:0;font-size:16px;line-height:1;background:#1e2936;color:var(--text);border:1px solid var(--line);border-radius:5px;cursor:pointer}
   aside{width:340px;background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:14px;flex:none}
   .bar{padding:10px 18px;background:var(--panel);border-top:1px solid var(--line);display:flex;align-items:center;gap:14px}
   .bar input[type=range]{flex:1;accent-color:#3b82f6}
@@ -37,11 +40,10 @@
   .kpi span{font-size:11px;color:var(--dim)}
   .legend{display:flex;gap:12px;font-size:11px;color:var(--dim);flex-wrap:wrap}
   .legend i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:4px}
-  canvas{width:100%;height:150px;background:#111823;border:1px solid var(--line);border-radius:6px}
+  #bd{width:100%;height:150px;background:#111823;border:1px solid var(--line);border-radius:6px}
   .err{color:#fca5a5;font-size:12px;padding:12px;border:1px solid #7f1d1d;border-radius:6px;background:#1c1013;line-height:1.7}
   .err code{background:#0f1419;padding:2px 5px;border-radius:3px;color:#e6edf3;font-size:11px}
-  .maplibregl-popup-content{background:#171d26;color:#e6edf3;border-radius:6px;font-size:13px;padding:10px 12px}
-  .maplibregl-popup-tip{border-top-color:#171d26 !important;border-bottom-color:#171d26 !important}
+  #tooltip{position:absolute;pointer-events:none;background:#171d26;border:1px solid var(--line);border-radius:6px;padding:8px 11px;font-size:12px;display:none;z-index:5;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -49,13 +51,21 @@
 <header>
   <h1>Đà Nẵng Traffic Analytics</h1>
   <span class="sub" id="tomtat">đang tải…</span>
-  <span class="sub" id="nguon-ban-do" style="margin-left:auto">…</span>
-  <button onclick="chanDoanMang()" style="background:#1e2936;color:var(--text);border:1px solid var(--line);border-radius:5px;padding:4px 11px;cursor:pointer;font-size:12px">Kiểm tra mạng</button>
-  <button id="nut-3d" onclick="bat3D()" style="display:none;background:#1e2936;color:var(--text);border:1px solid var(--line);border-radius:5px;padding:4px 11px;cursor:pointer;font-size:12px">Xem 3D</button>
+  <span class="sub" id="trangthai-bd" style="margin-left:auto">…</span>
+  <button onclick="veGiua()">Về giữa</button>
 </header>
 
 <main>
-  <div id="map"><div id="map-loi"></div></div>
+  <div id="khung-bd">
+    <canvas id="bando"></canvas>
+    <div id="tooltip"></div>
+    <div id="dieu-khien">
+      <button onclick="phongTo(1.4)">+</button>
+      <button onclick="phongTo(1/1.4)">&minus;</button>
+    </div>
+    <div id="chu-thich-bd">Mạng đường từ OpenStreetMap · kéo để di chuyển, lăn chuột để phóng to</div>
+  </div>
+
   <aside id="aside">
     <h2>Tổng quan dữ liệu</h2>
     <div class="kpi" id="kpi"></div>
@@ -80,190 +90,217 @@
 <div class="bar">
   <span>Thời điểm</span>
   <input type="range" id="slider" min="0" max="0" value="0">
-  <span class="tstamp" id="nhan">—</span>
+  <span class="tstamp" id="nhan">&mdash;</span>
 </div>
 
 <script>
-const MAU = {0:'#4b5563',1:'#22c55e',2:'#eab308',3:'#f97316',4:'#ef4444'};
-let thoiDiem = [], doanHienTai = [], dangChon = null, markers = [], map = null;
+/* ---------------------------------------------------------------------------
+   BẢN ĐỒ TỰ VẼ — không dùng thư viện ngoài, không gọi máy chủ tile nào.
+   Mạng ở Việt Nam hay chặn CARTO / OpenFreeMap / OSM tiles, nên thay vì phụ
+   thuộc CDN, ta vẽ thẳng mạng đường lấy từ chính đồ thị OSM của luận văn.
+   Lợi ích phụ: bản đồ hiện đúng đối tượng nghiên cứu, không phải nền chung.
+--------------------------------------------------------------------------- */
 
+const MAU = {0:'#4b5563',1:'#22c55e',2:'#eab308',3:'#f97316',4:'#ef4444'};
+const MAU_DUONG = {
+  motorway:'#46566b', trunk:'#3c4a5b', primary:'#333f4d',
+  secondary:'#2a3440', motorway_link:'#3a4757', trunk_link:'#333f4d',
+  primary_link:'#2d3844', secondary_link:'#26303b'
+};
+const TL = window.devicePixelRatio || 1;
+
+let thoiDiem = [], doanHienTai = [], dangChon = null;
+let duong = null, cv, ctx, keo = null;
+let view = { lon: 108.2100, lat: 16.0450, scale: 0 };
+
+/* ---- chiếu Mercator ---- */
+const R = 6378137;
+const toX = lon => R * lon * Math.PI / 180;
+const toY = lat => R * Math.log(Math.tan(Math.PI/4 + lat * Math.PI/360));
+const tuY = y  => (2 * Math.atan(Math.exp(y / R)) - Math.PI/2) * 180 / Math.PI;
+const tuX = x  => x / R * 180 / Math.PI;
+
+const manX = lon => (toX(lon) - toX(view.lon)) * view.scale + cv.width / 2;
+const manY = lat => (toY(view.lat) - toY(lat)) * view.scale + cv.height / 2;
+
+function chinhKichThuoc(){
+  const k = document.getElementById('khung-bd');
+  cv.width  = Math.max(1, k.clientWidth  * TL);
+  cv.height = Math.max(1, k.clientHeight * TL);
+  cv.style.width  = k.clientWidth + 'px';
+  cv.style.height = k.clientHeight + 'px';
+}
+
+function veGiua(){
+  view.lon = 108.2100; view.lat = 16.0450;
+  view.scale = cv.height / (toY(16.16) - toY(15.95));
+  veLai();
+}
+
+function veLai(){
+  if (!cv) return;
+  ctx.fillStyle = '#0b0f14';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+
+  if (duong){
+    const day = Math.max(0.5, view.scale * 260000);
+    for (const f of duong.features){
+      const c = f.geometry.coordinates;
+      let hien = false;
+      ctx.beginPath();
+      for (let i = 0; i < c.length; i++){
+        const x = manX(c[i][0]), y = manY(c[i][1]);
+        if (x > -150 && x < cv.width + 150 && y > -150 && y < cv.height + 150) hien = true;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      if (!hien) continue;
+      ctx.strokeStyle = MAU_DUONG[f.properties.h] || '#26303b';
+      ctx.lineWidth = f.properties.w * day;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+  }
+
+  doanHienTai.forEach(s => {
+    const x = manX(s.lon), y = manY(s.lat);
+    const r = (s.segment_id === dangChon ? 9 : 6) * TL;
+    ctx.beginPath(); ctx.arc(x, y, r + 2.5 * TL, 0, 7);
+    ctx.fillStyle = '#0b0f14'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7);
+    ctx.fillStyle = MAU[s.muc_tac]; ctx.fill();
+    if (s.segment_id === dangChon){
+      ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2.5 * TL; ctx.stroke();
+    }
+  });
+}
+
+function phongTo(he, mx, my){
+  if (!cv) return;
+  const cx = mx !== undefined ? mx * TL : cv.width / 2;
+  const cy = my !== undefined ? my * TL : cv.height / 2;
+  const gX = toX(view.lon) + (cx - cv.width / 2) / view.scale;
+  const gY = toY(view.lat) - (cy - cv.height / 2) / view.scale;
+  view.scale *= he;
+  view.lon = tuX(gX - (cx - cv.width / 2) / view.scale);
+  view.lat = tuY(gY + (cy - cv.height / 2) / view.scale);
+  veLai();
+}
+
+function ganSuKien(){
+  const k = document.getElementById('khung-bd');
+  const tip = document.getElementById('tooltip');
+
+  k.addEventListener('mousedown', e => {
+    keo = { x: e.clientX, y: e.clientY, lon: view.lon, lat: view.lat, dich: false };
+  });
+  window.addEventListener('mouseup', () => setTimeout(() => keo = null, 0));
+
+  window.addEventListener('mousemove', e => {
+    if (keo){
+      if (Math.abs(e.clientX - keo.x) + Math.abs(e.clientY - keo.y) > 3) keo.dich = true;
+      view.lon = tuX(toX(keo.lon) - (e.clientX - keo.x) * TL / view.scale);
+      view.lat = tuY(toY(keo.lat) + (e.clientY - keo.y) * TL / view.scale);
+      veLai();
+      return;
+    }
+    const r = k.getBoundingClientRect();
+    const mx = (e.clientX - r.left) * TL, my = (e.clientY - r.top) * TL;
+    let gan = null;
+    doanHienTai.forEach(s => {
+      if ((manX(s.lon) - mx) ** 2 + (manY(s.lat) - my) ** 2 < (15 * TL) ** 2) gan = s;
+    });
+    if (gan){
+      tip.style.display = 'block';
+      tip.style.left = (e.clientX - r.left + 14) + 'px';
+      tip.style.top  = (e.clientY - r.top + 14) + 'px';
+      tip.innerHTML = '<b>' + gan.ten + '</b><br>' + gan.current_speed + '/'
+                    + gan.freeflow_speed + ' km/h<br>tỷ lệ ' + (gan.speed_ratio ?? '–');
+      k.style.cursor = 'pointer';
+    } else {
+      tip.style.display = 'none';
+      k.style.cursor = 'grab';
+    }
+  });
+
+  k.addEventListener('click', e => {
+    if (keo && keo.dich) return;
+    const r = k.getBoundingClientRect();
+    const mx = (e.clientX - r.left) * TL, my = (e.clientY - r.top) * TL;
+    doanHienTai.forEach(s => {
+      if ((manX(s.lon) - mx) ** 2 + (manY(s.lat) - my) ** 2 < (15 * TL) ** 2) chonDoan(s.segment_id);
+    });
+  });
+
+  k.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = k.getBoundingClientRect();
+    phongTo(e.deltaY < 0 ? 1.25 : 1 / 1.25, e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+
+  window.addEventListener('resize', () => { chinhKichThuoc(); veLai(); });
+
+  // Khung co the chua co kich thuoc that luc trang vua tai (bo cuc chua xong,
+  // hoac pane dang thu nho). Theo doi de tu can lai khi no co kich thuoc.
+  if (window.ResizeObserver){
+    new ResizeObserver(() => {
+      const cu = cv.width;
+      chinhKichThuoc();
+      // neu truoc do canvas gan nhu khong co kich thuoc -> can lai tu dau
+      if (cu < 50 && cv.width >= 50) veGiua(); else veLai();
+    }).observe(document.getElementById('khung-bd'));
+  }
+}
+
+/* ---- API ---- */
 function baoLoi(html){
   document.getElementById('aside').innerHTML = '<div class="err">' + html + '</div>';
   document.getElementById('tomtat').textContent = 'lỗi — xem bảng bên phải';
 }
-
 async function api(p){
   const r = await fetch(p);
-  if(!r.ok) throw new Error('HTTP ' + r.status + ' tại ' + p + ' — ' + (await r.text()).slice(0,200));
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' tại ' + p + ' — ' + (await r.text()).slice(0, 200));
   return r.json();
 }
 
-// ---- Bản đồ: nhiều tầng dự phòng, không phụ thuộc một nguồn ----
-// Mạng ở Việt Nam hay chặn/chậm với một số CDN. Thay vì phụ thuộc một file
-// style bên ngoài, ta thử lần lượt nhiều nguồn và báo rõ nguồn nào đang dùng.
-
-const NGUON = [
-  { ten:'OpenFreeMap (vector, có 3D)', ba_chieu:true,
-    style:'https://tiles.openfreemap.org/styles/positron' },
-  { ten:'CARTO (vector, có 3D)', ba_chieu:true,
-    style:'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json' },
-  { ten:'OpenStreetMap (raster, phẳng)', ba_chieu:false, style:{
-      version:8,
-      sources:{ osm:{ type:'raster', tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-                      tileSize:256, attribution:'© OpenStreetMap contributors' } },
-      layers:[{ id:'osm', type:'raster', source:'osm' }]
-  }}
-];
-
-let nguonHienTai = -1, daVeXong = false;
-
-function ganTrangThai(txt, loi){
-  const el = document.getElementById('nguon-ban-do');
-  if (el){ el.textContent = txt; el.style.color = loi ? '#f87171' : 'var(--dim)'; }
-}
-
-function thuNguon(i){
-  const hop = document.getElementById('map-loi');
-  if (i >= NGUON.length){
-    hop.style.display = 'flex';
-    hop.innerHTML = 'Không tải được bản đồ từ bất kỳ nguồn nào.<br>'
-      + 'Mạng của bạn có thể đang chặn các máy chủ bản đồ.<br><br>'
-      + '<b style="color:#e6edf3">Phần dữ liệu bên phải vẫn hoạt động đầy đủ.</b>';
-    ganTrangThai('không tải được bản đồ', true);
-    return;
-  }
-  const n = NGUON[i];
-  nguonHienTai = i;
-  ganTrangThai('đang thử: ' + n.ten);
-
-  if (map){ try{ map.remove(); }catch(e){} map = null; }
-  daVeXong = false;
-
+async function taiDuong(){
+  const tt = document.getElementById('trangthai-bd');
+  tt.textContent = 'đang tải mạng đường…';
   try{
-    map = new maplibregl.Map({
-      container:'map', style:n.style,
-      center:[108.2200,16.0600], zoom:12.5, pitch:0, bearing:0,
-      attributionControl:{compact:true}
-    });
-  }catch(e){ return thuNguon(i+1); }
-
-  // Cho lau hon: mang cham khong co nghia la hong.
-  const hetGio = setTimeout(()=>{ if(!daVeXong){ console.warn('Qua han:', n.ten); thuNguon(i+1); } }, 25000);
-
-  map.on('error', e => {
-    const msg = String(e && e.error && e.error.message || '');
-    const st  = e && e.error && e.error.status;
-    console.warn('Loi ban do (' + n.ten + '):', msg || st);
-    // Chi doi nguon khi style KHONG tai duoc. Loi tung o tile le te thi bo qua.
-    const styleHong = !daVeXong && (st === 403 || st === 404 ||
-                       /failed to fetch|networkerror|load.*style|style.*load/i.test(msg));
-    if (styleHong){ clearTimeout(hetGio); thuNguon(i+1); }
-  });
-
-  map.on('load', ()=>{
-    daVeXong = true; clearTimeout(hetGio);
-    document.getElementById('map-loi').style.display = 'none';
-    ganTrangThai('nguồn: ' + n.ten);
-    map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
-    if (n.ba_chieu) themToaNha();
-    veMarker();
-  });
-}
-
-// Khối 3D: dựng nhà theo chiều cao có trong dữ liệu vector
-function themToaNha(){
-  try{
-    const lop = map.getStyle().layers.find(l => l.type==='symbol' && l.layout && l.layout['text-field']);
-    if (map.getSource('openmaptiles') || map.getSource('carto')){
-      const src = map.getSource('openmaptiles') ? 'openmaptiles' : 'carto';
-      map.addLayer({
-        id:'toa-nha-3d', source:src, 'source-layer':'building',
-        type:'fill-extrusion', minzoom:14,
-        paint:{
-          'fill-extrusion-color':'#2a3441',
-          'fill-extrusion-height':['coalesce',['get','render_height'],['get','height'],12],
-          'fill-extrusion-base':['coalesce',['get','render_min_height'],0],
-          'fill-extrusion-opacity':0.75
-        }
-      }, lop && lop.id);
-      document.getElementById('nut-3d').style.display = 'inline-block';
-    }
-  }catch(e){ console.warn('Không dựng được khối 3D:', e.message); }
-}
-
-function bat3D(){
-  if (!map) return;
-  const dang3D = map.getPitch() > 10;
-  map.easeTo({ pitch: dang3D ? 0 : 55, bearing: dang3D ? 0 : -20, zoom: dang3D ? 12.5 : 15, duration: 900 });
-  document.getElementById('nut-3d').textContent = dang3D ? 'Xem 3D' : 'Xem phẳng';
-}
-
-// Chẩn đoán: thử tải thật từng nguồn, báo nguồn nào mạng của bạn vào được.
-async function chanDoanMang(){
-  const dich = [
-    ['Thư viện MapLibre (unpkg)', 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'],
-    ['Style OpenFreeMap',        'https://tiles.openfreemap.org/styles/positron'],
-    ['Tile OpenFreeMap',         'https://tiles.openfreemap.org/planet/20250101_001001_pt/12/3269/1925.pbf'],
-    ['Style CARTO',              'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'],
-    ['Tile CARTO',               'https://basemaps.cartocdn.com/vector/carto.streets/v1/12/3269/1925.mvt'],
-    ['Tile OpenStreetMap',       'https://tile.openstreetmap.org/12/3269/1925.png'],
-  ];
-  const el = document.getElementById('aside');
-  el.innerHTML = '<h2>Chẩn đoán mạng</h2><div id="cd" style="font-size:12px;line-height:2">đang thử…</div>';
-  const ra = [];
-  for (const [ten, url] of dich){
-    const t0 = performance.now();
-    let kq;
-    try{
-      await fetch(url, {mode:'no-cors', cache:'no-store'});
-      kq = '<span style="color:#22c55e">✓ vào được</span> ' + Math.round(performance.now()-t0) + 'ms';
-    }catch(e){
-      kq = '<span style="color:#f87171">✗ bị chặn</span>';
-    }
-    ra.push(`<div>${ten}<br><span style="color:var(--dim)">${kq}</span></div>`);
-    document.getElementById('cd').innerHTML = ra.join('');
-  }
-  ra.push('<br><div style="color:var(--dim)">Gửi ảnh chụp bảng này nếu bản đồ vẫn trắng.<br>'
-        + '<a href="/" style="color:#3b82f6">Tải lại trang</a></div>');
-  document.getElementById('cd').innerHTML = ra.join('');
-}
-
-function taoBanDo(){
-  if (typeof maplibregl === 'undefined'){
-    const hop = document.getElementById('map-loi');
-    hop.style.display = 'flex';
-    hop.innerHTML = 'Không tải được thư viện MapLibre từ CDN.<br>'
-      + 'Mạng của bạn có thể đang chặn unpkg.com.<br><br>'
-      + '<b style="color:#e6edf3">Phần dữ liệu bên phải vẫn hoạt động đầy đủ.</b>';
-    ganTrangThai('thiếu thư viện bản đồ', true);
-    return;
-  }
-  thuNguon(0);
-}
-
-// ---- Dữ liệu: chạy độc lập, luôn thử ----
-async function khoiDong(){
-  let tq;
-  try{
-    tq = await api('/api/tong-quan');
+    duong = await api('/api/duong-chinh');
+    tt.textContent = duong.features.length.toLocaleString('vi') + ' đoạn đường · OSM';
+    veLai();
   }catch(e){
-    baoLoi('<b>Chưa đọc được dữ liệu.</b><br><br>'
-      + 'Chi tiết: ' + e.message + '<br><br>'
-      + 'Hãy chắc chắn có file parquet trong <code>ingest/tomtom/data/</code>. Nếu chưa có:<br><br>'
-      + '<code>cd ingest/tomtom</code><br><code>python collect.py</code><br><br>'
-      + 'hoặc <code>git pull</code> để lấy dữ liệu GitHub Actions đã thu.<br><br>'
-      + 'Và nhớ chạy uvicorn <b>từ thư mục gốc của repo</b>:<br>'
-      + '<code>python -m uvicorn services.api.main:app --port 8000</code>');
+    tt.textContent = 'chưa có mạng đường';
+    tt.style.color = '#f87171';
+    document.getElementById('chu-thich-bd').innerHTML =
+      'Chưa có file mạng đường. Chạy: <code style="color:#e6edf3">python graph/xuat_geojson.py</code>';
+  }
+}
+
+async function khoiDong(){
+  cv = document.getElementById('bando');
+  ctx = cv.getContext('2d');
+  chinhKichThuoc();
+  ganSuKien();
+  veGiua();
+
+  let tq;
+  try{ tq = await api('/api/tong-quan'); }
+  catch(e){
+    baoLoi('<b>Chưa đọc được dữ liệu.</b><br><br>' + e.message + '<br><br>'
+      + 'Chạy <code>cd ingest/tomtom &amp;&amp; python collect.py</code> hoặc <code>git pull</code>.'
+      + '<br><br>Và chạy uvicorn <b>từ thư mục gốc repo</b>.');
+    taiDuong();
     return;
   }
 
-  document.getElementById('kpi').innerHTML = `
-    <div><b>${tq.so_doan}</b><span>đoạn đo</span></div>
-    <div><b>${tq.so_lan_do}</b><span>lần đo</span></div>
-    <div><b>${tq.so_ban_ghi.toLocaleString('vi')}</b><span>bản ghi</span></div>
-    <div><b>${tq.so_ngay}</b><span>ngày dữ liệu</span></div>`;
+  document.getElementById('kpi').innerHTML =
+      '<div><b>' + tq.so_doan + '</b><span>đoạn đo</span></div>'
+    + '<div><b>' + tq.so_lan_do + '</b><span>lần đo</span></div>'
+    + '<div><b>' + tq.so_ban_ghi.toLocaleString('vi') + '</b><span>bản ghi</span></div>'
+    + '<div><b>' + tq.so_ngay + '</b><span>ngày dữ liệu</span></div>';
   document.getElementById('tomtat').textContent =
-    `dữ liệu TomTom thực đo · ${tq.so_ban_ghi.toLocaleString('vi')} bản ghi · ${tq.so_ngay} ngày`;
+    'dữ liệu TomTom thực đo · ' + tq.so_ban_ghi.toLocaleString('vi') + ' bản ghi · ' + tq.so_ngay + ' ngày';
 
   thoiDiem = await api('/api/thoi-diem');
   const sl = document.getElementById('slider');
@@ -271,6 +308,7 @@ async function khoiDong(){
   sl.value = sl.max;
   sl.oninput = () => taiDoan(thoiDiem[sl.value]);
   await taiDoan(thoiDiem[sl.max]);
+  taiDuong();
 }
 
 async function taiDoan(ts){
@@ -278,39 +316,22 @@ async function taiDoan(ts){
   doanHienTai = kq.doan;
   const d = new Date(kq.thoi_diem);
   document.getElementById('nhan').textContent =
-    d.toLocaleString('vi-VN',{weekday:'short',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    d.toLocaleString('vi-VN', {weekday:'short', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
   veDanhSach();
-  veMarker();
-}
-
-function veMarker(){
-  if (!map || !daVeXong) return;
-  markers.forEach(m => m.remove()); markers = [];
-  doanHienTai.forEach(s => {
-    const el = document.createElement('div');
-    el.style.cssText = `width:16px;height:16px;border-radius:50%;cursor:pointer;
-      background:${MAU[s.muc_tac]};border:2px solid #0f1419;box-shadow:0 0 0 1px ${MAU[s.muc_tac]}`;
-    const m = new maplibregl.Marker({element:el}).setLngLat([s.lon, s.lat])
-      .setPopup(new maplibregl.Popup({offset:14}).setHTML(
-        `<b>${s.ten}</b><br>${s.current_speed}/${s.freeflow_speed} km/h<br>tỷ lệ ${s.speed_ratio ?? '–'}`))
-      .addTo(map);
-    el.onclick = () => chonDoan(s.segment_id);
-    markers.push(m);
-  });
+  veLai();
 }
 
 function veDanhSach(){
-  document.getElementById('ds').innerHTML = doanHienTai.map(s => `
-    <div class="seg ${s.segment_id === dangChon ? 'on' : ''}" onclick="chonDoan('${s.segment_id}')">
-      <span class="nm"><i class="dot" style="background:${MAU[s.muc_tac]}"></i>${s.ten}</span>
-      <span class="sp">${s.current_speed ?? '–'}/${s.freeflow_speed ?? '–'}</span>
-    </div>`).join('');
+  document.getElementById('ds').innerHTML = doanHienTai.map(s =>
+    '<div class="seg ' + (s.segment_id === dangChon ? 'on' : '') + '" onclick="chonDoan(\'' + s.segment_id + '\')">'
+    + '<span class="nm"><i class="dot" style="background:' + MAU[s.muc_tac] + '"></i>' + s.ten + '</span>'
+    + '<span class="sp">' + (s.current_speed ?? '–') + '/' + (s.freeflow_speed ?? '–') + '</span></div>').join('');
 }
 
 async function chonDoan(id){
-  dangChon = id; veDanhSach();
+  dangChon = id; veDanhSach(); veLai();
   try{
-    const d = await api(`/api/doan/${id}/chuoi-thoi-gian`);
+    const d = await api('/api/doan/' + id + '/chuoi-thoi-gian');
     document.getElementById('tieude-bd').textContent = 'Tốc độ — ' + d.ten;
     veBieuDo(d.diem);
   }catch(e){ console.error(e); }
@@ -319,40 +340,42 @@ async function chonDoan(id){
 function veBieuDo(diem){
   const c = document.getElementById('bd'), x = c.getContext('2d');
   const W = c.width, H = c.height, P = 30;
-  x.clearRect(0,0,W,H);
-  if(!diem.length) return;
-  const vals = diem.map(p=>p.current_speed).filter(v=>v!=null);
-  const ff = diem.map(p=>p.freeflow_speed).filter(v=>v!=null);
+  x.clearRect(0, 0, W, H);
+  if (!diem.length) return;
+  const vals = diem.map(p => p.current_speed).filter(v => v != null);
+  const ff = diem.map(p => p.freeflow_speed).filter(v => v != null);
   const max = Math.max(...vals, ...ff, 10) * 1.1;
 
-  x.strokeStyle='#242c38'; x.lineWidth=1;
-  for(let i=0;i<=4;i++){ const y=P+(H-2*P)*i/4; x.beginPath(); x.moveTo(P,y); x.lineTo(W-8,y); x.stroke();
-    x.fillStyle='#8b98a8'; x.font='11px system-ui'; x.fillText(Math.round(max*(1-i/4)), 4, y+4); }
+  x.strokeStyle = '#242c38'; x.lineWidth = 1;
+  for (let i = 0; i <= 4; i++){
+    const y = P + (H - 2*P) * i/4;
+    x.beginPath(); x.moveTo(P, y); x.lineTo(W - 8, y); x.stroke();
+    x.fillStyle = '#8b98a8'; x.font = '11px system-ui';
+    x.fillText(Math.round(max * (1 - i/4)), 4, y + 4);
+  }
 
-  const px = i => P + (W-P-8) * (diem.length===1 ? .5 : i/(diem.length-1));
-  const py = v => P + (H-2*P) * (1 - v/max);
+  const px = i => P + (W - P - 8) * (diem.length === 1 ? .5 : i / (diem.length - 1));
+  const py = v => P + (H - 2*P) * (1 - v / max);
 
-  x.strokeStyle='#4b5563'; x.setLineDash([4,3]); x.lineWidth=1.5; x.beginPath();
-  diem.forEach((p,i)=>{ if(p.freeflow_speed==null) return;
-    i===0 ? x.moveTo(px(i),py(p.freeflow_speed)) : x.lineTo(px(i),py(p.freeflow_speed)); });
+  x.strokeStyle = '#4b5563'; x.setLineDash([4,3]); x.lineWidth = 1.5; x.beginPath();
+  diem.forEach((p, i) => { if (p.freeflow_speed == null) return;
+    i === 0 ? x.moveTo(px(i), py(p.freeflow_speed)) : x.lineTo(px(i), py(p.freeflow_speed)); });
   x.stroke(); x.setLineDash([]);
 
-  x.strokeStyle='#3b82f6'; x.lineWidth=2; x.beginPath();
-  diem.forEach((p,i)=>{ if(p.current_speed==null) return;
-    i===0 ? x.moveTo(px(i),py(p.current_speed)) : x.lineTo(px(i),py(p.current_speed)); });
+  x.strokeStyle = '#3b82f6'; x.lineWidth = 2; x.beginPath();
+  diem.forEach((p, i) => { if (p.current_speed == null) return;
+    i === 0 ? x.moveTo(px(i), py(p.current_speed)) : x.lineTo(px(i), py(p.current_speed)); });
   x.stroke();
 
-  diem.forEach((p,i)=>{ if(p.current_speed==null) return;
-    x.fillStyle = MAU[p.speed_ratio>=.85?1:p.speed_ratio>=.65?2:p.speed_ratio>=.45?3:4];
-    x.beginPath(); x.arc(px(i),py(p.current_speed),3,0,7); x.fill(); });
+  diem.forEach((p, i) => { if (p.current_speed == null) return;
+    x.fillStyle = MAU[p.speed_ratio >= .85 ? 1 : p.speed_ratio >= .65 ? 2 : p.speed_ratio >= .45 ? 3 : 4];
+    x.beginPath(); x.arc(px(i), py(p.current_speed), 3, 0, 7); x.fill(); });
 
-  x.fillStyle='#8b98a8'; x.font='11px system-ui';
-  x.fillText('— hiện tại   ---- dòng tự do (km/h)', P, H-8);
+  x.fillStyle = '#8b98a8'; x.font = '11px system-ui';
+  x.fillText('— hiện tại   ---- dòng tự do (km/h)', P, H - 8);
 }
 
-// Dữ liệu chạy trước và độc lập; bản đồ tạo sau, hỏng cũng không ảnh hưởng.
 khoiDong().catch(e => baoLoi('<b>Lỗi không mong đợi.</b><br><br>' + e.message));
-taoBanDo();
 </script>
 </body>
 </html>

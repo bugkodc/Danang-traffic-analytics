@@ -2,23 +2,30 @@ name: Thu thap du lieu TomTom
 
 # Chay tren ha tang GitHub, KHONG can may ca nhan bat 24/24.
 #
-# Lich lay mau thich ung theo gio (gio ghi theo UTC, Viet Nam = UTC+7):
-#   - Cao diem  VN 05:00-09:00 va 16:00-20:00  ->  10 phut/lan
-#   - Con lai                                   ->  20 phut/lan
+# ---------------------------------------------------------------------------
+# THIET KE LICH - da doi ngay 02/09/2026 sau khi thu nghiem that bai
+# ---------------------------------------------------------------------------
+# Lan dau dung cron 10-20 phut/lan. Ket qua: sau 95 phut, 0 lan chay tu dong.
+# Nguyen nhan: GitHub ghi ro su kien `schedule` co the bi hoan hoac BO QUA
+# khi he thong tai cao, va lich duoi 1 gio thuc te rat khong dang tin,
+# dac biet voi repo cong khai o goi mien phi.
 #
-# Cac phut le (3,13,23,... va 7,27,47) la co y:
-#   1. Tranh dau gio la luc GitHub Actions dong nghet nhat -> it bi tre
-#   2. Tao do lech tu nhien, chong sai lech he thong do lay mau dung chu ky
+# Thiet ke moi: chi dua vao cron MOI GIO (tang dang tin cay cao hon han),
+# va lay nhieu mau NGAY TRONG mot lan chay bang vong lap noi bo.
+#   - Cron chay luc phut :05 moi gio  (tranh dau gio la luc GitHub dong nhat)
+#   - Moi lan chay: goi API 3 lan, cach nhau 15 phut  -> ~:05, :20, :35
+#   - Job keo dai ~31 phut, commit mot lan o cuoi
 #
-# Quota: ~96 lan/ngay x 12 doan = ~1.152 request/ngay, nam trong han muc
-# mien phi 2.500/ngay cua TomTom, con du de mo rong len ~20 doan.
+# Loi ich: van giu do phan giai 15 phut, nhung chi can cron moi gio chay dung.
+# Neu mot gio bi bo qua, chi mat 1 gio du lieu chu khong mat ca ngay.
+#
+# Quota TomTom: 3 lan/gio x 24 gio x 12 doan = 864 request/ngay,
+# nam gon trong han muc mien phi 2.500/ngay, con du mo rong len ~30 doan.
+# ---------------------------------------------------------------------------
 
 on:
   schedule:
-    # cao diem sang (UTC 22-01) va chieu (UTC 09-12)
-    - cron: '3,13,23,33,43,53 22,23,0,1,9,10,11,12 * * *'
-    # cac khung gio con lai
-    - cron: '7,27,47 2-8,13-21 * * *'
+    - cron: '5 * * * *'     # moi gio, phut thu 5
   workflow_dispatch:        # bam chay tay de test
 
   # PHUONG AN DU PHONG - cong kich hoat tu ben ngoai.
@@ -43,6 +50,7 @@ concurrency:
 jobs:
   thu-thap:
     runs-on: ubuntu-latest
+    timeout-minutes: 45     # job chay ~31 phut, dat nguong an toan
     permissions:
       contents: write       # can quyen ghi de commit du lieu nguoc lai repo
 
@@ -56,11 +64,19 @@ jobs:
       - name: Cai thu vien
         run: pip install --quiet requests pandas pyarrow
 
-      - name: Goi API va ghi du lieu
+      - name: Goi API 3 lan, cach nhau 15 phut
         env:
           TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
-        run: python collect.py
         working-directory: ingest/tomtom
+        run: |
+          for i in 1 2 3; do
+            echo "--- Lan lay mau $i/3 ---"
+            python collect.py || echo "Lan $i that bai, bo qua va di tiep"
+            if [ $i -lt 3 ]; then
+              echo "Cho 15 phut den lan tiep theo..."
+              sleep 900
+            fi
+          done
 
       - name: Commit du lieu
         run: |

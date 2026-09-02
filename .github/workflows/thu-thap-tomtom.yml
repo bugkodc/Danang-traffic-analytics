@@ -19,7 +19,21 @@ on:
     - cron: '3,13,23,33,43,53 22,23,0,1,9,10,11,12 * * *'
     # cac khung gio con lai
     - cron: '7,27,47 2-8,13-21 * * *'
-  workflow_dispatch:        # cho phep bam chay tay de test
+  workflow_dispatch:        # bam chay tay de test
+
+  # PHUONG AN DU PHONG - cong kich hoat tu ben ngoai.
+  # GitHub ghi ro su kien schedule co the bi hoan hoac bo qua khi he thong
+  # tai cao; lich duoi 1 gio rat khong dang tin. Neu schedule khong on dinh,
+  # dung mot dich vu cron mien phi ben ngoai (vd cron-job.org) goi:
+  #
+  #   POST https://api.github.com/repos/bugkodc/Danang-traffic-analytics/dispatches
+  #   Header: Authorization: Bearer <PAT co quyen repo>
+  #           Accept: application/vnd.github+json
+  #   Body:   {"event_type": "thu-thap"}
+  #
+  # Dich vu cron ben ngoai chay dung gio hon GitHub scheduler nhieu.
+  repository_dispatch:
+    types: [thu-thap]
 
 # Chan hai lan chay chong len nhau gay xung dot khi commit
 concurrency:

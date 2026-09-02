@@ -96,3 +96,8 @@ data/raw/anh_hcm_mau/
 data/raw/anh_hcm_phang/
 results/chan_doan/
 results/dem_xe/
+
+# Bo du lieu tai ve tu HuggingFace (1,3GB) - tai lai bang:
+#   huggingface_hub.snapshot_download("visaitech/vehicle-mixed-traffic-detection",
+#       repo_type="dataset", local_dir="data/raw/mixed_traffic")
+data/raw/mixed_traffic/

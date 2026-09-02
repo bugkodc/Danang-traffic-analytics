@@ -1,13 +1,13 @@
 segment_id,ten,lat,lon,ghi_chu
-S01,Cau Rong,16.0579,108.2270,Cau qua song Han - truc trung tam
-S02,Cau Song Han,16.0722,108.2270,Cau qua song Han - phia bac
-S03,Cau Tran Thi Ly,16.0525,108.2295,Cau qua song Han - phia nam
-S04,Nga ba Hue,16.0631,108.1795,Nut giao nhieu tang - cua ngo tay bac
-S05,Nguyen Van Linh,16.0565,108.2140,Truc xuyen tam dong-tay
-S06,Dien Bien Phu,16.0680,108.1900,Truc xuyen tam
-S07,Ngo Quyen,16.0700,108.2330,Truc doc bo dong song Han
-S08,Vo Nguyen Giap,16.0600,108.2415,Tuyen ven bien - du lich
-S09,Le Duan,16.0715,108.2150,Truc trung tam
-S10,Nguyen Tri Phuong,16.0570,108.2100,Truc bac-nam
-S11,San bay Da Nang,16.0474,108.1959,Cua ngo san bay
-S12,Pham Van Dong,16.0720,108.2405,Tuyen ra bien
+S01,Cau Rong,16.0611,108.2279,Cau qua song Han - truc trung tam
+S02,Cau Song Han,16.0721,108.2268,Cau qua song Han - phia bac
+S03,Cau Tran Thi Ly,16.0505,108.2307,Cau qua song Han - phia nam
+S04,Nga ba Hue,16.0632,108.1798,Nut giao nhieu tang - cua ngo tay bac
+S05,Nguyen Van Linh,16.0608,108.2195,Truc xuyen tam dong-tay
+S06,Dien Bien Phu,16.0662,108.1880,Truc xuyen tam
+S07,Ngo Quyen,16.0710,108.2340,Truc doc bo dong song Han
+S08,Vo Nguyen Giap,16.0600,108.2465,Tuyen ven bien - du lich
+S09,Le Duan,16.0718,108.2165,Truc trung tam
+S10,Nguyen Tri Phuong,16.0560,108.2045,Truc bac-nam
+S11,San bay Da Nang,16.0520,108.1975,Cua ngo san bay
+S12,Pham Van Dong,16.0710,108.2390,Tuyen ra bien

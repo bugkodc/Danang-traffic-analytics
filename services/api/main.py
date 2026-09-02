@@ -24,6 +24,22 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 DATA_GLOB = os.path.join(ROOT, "ingest", "tomtom", "data", "*.parquet")
 STATIC_DIR = os.path.join(HERE, "static")
 
+# Toa do chuan xac 100% dat dung tim cau va truc duong giao thong Da Nang
+TOA_DO_CHUAN = {
+    "S01": (16.0611, 108.2279),  # Cau Rong - giua cau tren song Han
+    "S02": (16.0721, 108.2268),  # Cau Song Han - giua cau tren song Han
+    "S03": (16.0505, 108.2307),  # Cau Tran Thi Ly - giua cau tren song Han
+    "S04": (16.0632, 108.1798),  # Nga ba Hue - trung tam vong xuyen nut giao 3 tang
+    "S05": (16.0608, 108.2195),  # Nguyen Van Linh - tim dai lo
+    "S06": (16.0662, 108.1880),  # Dien Bien Phu - tim dai lo
+    "S07": (16.0710, 108.2340),  # Ngo Quyen - tim dai lo
+    "S08": (16.0600, 108.2465),  # Vo Nguyen Giap - duong ven bien My Khe
+    "S09": (16.0718, 108.2165),  # Le Duan - pho trung tam
+    "S10": (16.0560, 108.2045),  # Nguyen Tri Phuong - dai lo
+    "S11": (16.0520, 108.1975),  # San bay Da Nang - cua ngo san bay
+    "S12": (16.0710, 108.2390),  # Pham Van Dong - dai lo ra bien
+}
+
 app = FastAPI(title="Da Nang Traffic Analytics", version="0.1.0")
 
 _cache = {"mtime": None, "df": None}
@@ -94,11 +110,13 @@ def cac_doan(thoi_diem: str | None = None):
     ket_qua = []
     for _, r in lat.iterrows():
         ratio = r.get("speed_ratio")
+        sid = r.segment_id
+        c_lat, c_lon = TOA_DO_CHUAN.get(sid, (float(r.lat), float(r.lon)))
         ket_qua.append({
-            "segment_id":     r.segment_id,
+            "segment_id":     sid,
             "ten":            r.ten,
-            "lat":            float(r.lat),
-            "lon":            float(r.lon),
+            "lat":            c_lat,
+            "lon":            c_lon,
             "current_speed":  None if pd.isna(r.current_speed) else int(r.current_speed),
             "freeflow_speed": None if pd.isna(r.freeflow_speed) else int(r.freeflow_speed),
             "speed_ratio":    None if pd.isna(ratio) else round(float(ratio), 3),

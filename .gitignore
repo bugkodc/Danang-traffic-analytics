@@ -89,3 +89,10 @@ services/api/static/vendor/
 
 # File ban do sinh ra tu do thi, tai tao duoc bang graph/xuat_geojson.py
 serving/*.geojson
+
+# Anh camera thu ve - tai lai duoc bang ingest/camera_hcm/thu_anh.py
+data/raw/anh_hcm/
+data/raw/anh_hcm_mau/
+data/raw/anh_hcm_phang/
+results/chan_doan/
+results/dem_xe/

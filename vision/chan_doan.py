@@ -73,6 +73,8 @@ def main():
     ap.add_argument("--mo-hinh", default="yolo11n.pt")
     ap.add_argument("--so-anh", type=int, default=200, help="Chi xu ly N anh dau")
     ap.add_argument("--luu-anh", type=int, default=20, help="Luu N anh co hop bao")
+    ap.add_argument("--lop-2banh", type=int, default=0,
+                    help="Chi so lop '2 banh' trong data.yaml cua bo du lieu")
     a = ap.parse_args()
 
     files = []
@@ -118,10 +120,23 @@ def main():
             for c, gx1, gy1, gx2, gy2 in doc_nhan(fn, W, H):
                 # nhan cua bo du lieu ngoai co the danh so lop khac COCO;
                 # o day gia dinh lop 0 = xe may (kiem tra data.yaml cua bo do)
-                lop_that = "motorcycle" if c == 0 else f"lop_{c}"
+                # Bo du lieu ngoai danh so lop KHAC COCO. Vi du bo
+                # mixed-traffic gop xe may + xe dap thanh mot lop "2-wheeler",
+                # trong khi COCO tach rieng motorcycle(3) va bicycle(1).
+                # Phai anh xa cho dung, neu khong so lieu vo nghia.
+                if c == a.lop_2banh:
+                    lop_that = "2 banh (xe may/xe dap)"
+                    khop = ("motorcycle", "bicycle")
+                else:
+                    lop_that = f"lop_{c}"
+                    khop = None
                 that[lop_that] += 1
-                if any(iou((gx1, gy1, gx2, gy2), d[1:]) > 0.4 for d in du_doan):
-                    bat_duoc[lop_that] += 1
+                # chi tinh la BAT DUOC neu hop trung VA dung nhom lop
+                for d in du_doan:
+                    if iou((gx1, gy1, gx2, gy2), d[1:]) > 0.4:
+                        if khop is None or d[0] in khop:
+                            bat_duoc[lop_that] += 1
+                            break
 
         if da_luu < a.luu_anh:
             for lop, x1, y1, x2, y2 in du_doan:
@@ -152,9 +167,9 @@ def main():
             dong.append({"lop": lop, "nhan_that": n, "bat_duoc": b,
                          "sot": sot, "ty_le_sot_pct": round(ty, 1)})
         print()
-        tm = that.get("motorcycle", 0)
+        tm = that.get("2 banh (xe may/xe dap)", 0)
         if tm:
-            ty = (tm - bat_duoc.get("motorcycle", 0)) / tm * 100
+            ty = (tm - bat_duoc.get("2 banh (xe may/xe dap)", 0)) / tm * 100
             print(f"*** TY LE SOT XE MAY: {ty:.1f}% ***\n")
             if ty < 15:
                 print("  -> Khoang cach mien NHO. Luan diem yeu.")

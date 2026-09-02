@@ -1,0 +1,4 @@
+pedestrian
+2-wheeler
+3-wheeler
+4-wheeler

@@ -1,0 +1,14 @@
+# Thi giac may tinh
+ultralytics>=8.3        # YOLOv11 + ByteTrack
+opencv-python>=4.10
+numpy>=1.26
+pandas>=2.2
+pyarrow>=16.0
+
+# PyTorch: KHONG cai tu day. Cai rieng de chon dung ban CPU hay CUDA:
+#
+#   CPU (nhe ~200MB, du de suy luan):
+#     pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+#
+#   CUDA (nang ~2,4GB, can de HUAN LUYEN):
+#     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121

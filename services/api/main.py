@@ -182,6 +182,16 @@ def duong_chinh():
     return FileResponse(f, media_type="application/geo+json")
 
 
+@app.get("/api/mat-nuoc")
+def mat_nuoc():
+    """Song, bien, ho - lam nen cho ban do. Sinh boi graph/xuat_geojson.py"""
+    f = os.path.join(ROOT, "serving", "mat_nuoc.geojson")
+    if not os.path.exists(f):
+        raise HTTPException(404, "Chua co mat_nuoc.geojson. "
+                                 "Chay: python graph/xuat_geojson.py")
+    return FileResponse(f, media_type="application/geo+json")
+
+
 # --- phuc vu trang web tinh ---
 if os.path.isdir(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

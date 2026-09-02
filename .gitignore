@@ -81,3 +81,11 @@ desktop.ini
 # tomtom/data/*.parquet la du lieu chuoi thoi gian KHONG TAI TAO DUOC.
 # Commit vao git de tu dong co sao luu va lich su phien ban.
 !tomtom/data/*.parquet
+
+# Thu vien tai ve, khong commit (20MB). Tai lai bang:
+#   curl -sL -o c.tgz https://registry.npmjs.org/cesium/-/cesium-1.126.0.tgz
+#   tar -xzf c.tgz && mv package/Build/Cesium services/api/static/vendor/Cesium
+services/api/static/vendor/
+
+# File ban do sinh ra tu do thi, tai tao duoc bang graph/xuat_geojson.py
+serving/*.geojson

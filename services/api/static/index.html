@@ -4,24 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Đà Nẵng Traffic Analytics</title>
+<link rel="stylesheet" href="/static/vendor/Cesium/Widgets/widgets.css">
 <style>
   :root{
     --bg:#0f1419; --panel:#171d26; --line:#242c38; --text:#e6edf3; --dim:#8b98a8;
-    --m1:#22c55e; --m2:#eab308; --m3:#f97316; --m4:#ef4444; --m0:#4b5563;
+    --m1:#22c55e; --m2:#eab308; --m3:#f97316; --m4:#ef4444;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
-  header{padding:12px 18px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header{padding:12px 18px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap;z-index:10}
   header h1{font-size:16px;font-weight:600}
   header .sub{color:var(--dim);font-size:12px}
   header button{background:#1e2936;color:var(--text);border:1px solid var(--line);border-radius:5px;padding:4px 11px;cursor:pointer;font-size:12px}
   header button:hover{border-color:#3b82f6}
   main{flex:1;display:flex;min-height:0}
-  #khung-bd{flex:1;position:relative;background:#0b0f14;cursor:grab;overflow:hidden}
-  #bando{display:block}
-  #chu-thich-bd{position:absolute;left:12px;bottom:10px;font-size:11px;color:var(--dim);pointer-events:none}
-  #dieu-khien{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:4px}
-  #dieu-khien button{width:30px;height:30px;padding:0;font-size:16px;line-height:1;background:#1e2936;color:var(--text);border:1px solid var(--line);border-radius:5px;cursor:pointer}
+  #ce{flex:1;position:relative;background:#0b0f14}
+  #tai{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:13px;z-index:5;pointer-events:none;text-align:center;line-height:1.8}
   aside{width:340px;background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:14px;flex:none}
   .bar{padding:10px 18px;background:var(--panel);border-top:1px solid var(--line);display:flex;align-items:center;gap:14px}
   .bar input[type=range]{flex:1;accent-color:#3b82f6}
@@ -43,7 +41,7 @@
   #bd{width:100%;height:150px;background:#111823;border:1px solid var(--line);border-radius:6px}
   .err{color:#fca5a5;font-size:12px;padding:12px;border:1px solid #7f1d1d;border-radius:6px;background:#1c1013;line-height:1.7}
   .err code{background:#0f1419;padding:2px 5px;border-radius:3px;color:#e6edf3;font-size:11px}
-  #tooltip{position:absolute;pointer-events:none;background:#171d26;border:1px solid var(--line);border-radius:6px;padding:8px 11px;font-size:12px;display:none;z-index:5;white-space:nowrap}
+  .cesium-viewer-bottom,.cesium-widget-credits{display:none !important}
 </style>
 </head>
 <body>
@@ -51,21 +49,13 @@
 <header>
   <h1>Đà Nẵng Traffic Analytics</h1>
   <span class="sub" id="tomtat">đang tải…</span>
-  <span class="sub" id="trangthai-bd" style="margin-left:auto">…</span>
+  <span class="sub" id="tt-bd" style="margin-left:auto">…</span>
   <button onclick="veGiua()">Về giữa</button>
+  <button onclick="doiGocNhin()" id="nut-goc">Nghiêng 3D</button>
 </header>
 
 <main>
-  <div id="khung-bd">
-    <canvas id="bando"></canvas>
-    <div id="tooltip"></div>
-    <div id="dieu-khien">
-      <button onclick="phongTo(1.4)">+</button>
-      <button onclick="phongTo(1/1.4)">&minus;</button>
-    </div>
-    <div id="chu-thich-bd">Mạng đường từ OpenStreetMap · kéo để di chuyển, lăn chuột để phóng to</div>
-  </div>
-
+  <div id="ce"><div id="tai">Đang khởi tạo Cesium…</div></div>
   <aside id="aside">
     <h2>Tổng quan dữ liệu</h2>
     <div class="kpi" id="kpi"></div>
@@ -93,207 +83,203 @@
   <span class="tstamp" id="nhan">&mdash;</span>
 </div>
 
+<script>window.CESIUM_BASE_URL = '/static/vendor/Cesium/';</script>
+<script src="/static/vendor/Cesium/Cesium.js"></script>
 <script>
 /* ---------------------------------------------------------------------------
-   BẢN ĐỒ TỰ VẼ — không dùng thư viện ngoài, không gọi máy chủ tile nào.
-   Mạng ở Việt Nam hay chặn CARTO / OpenFreeMap / OSM tiles, nên thay vì phụ
-   thuộc CDN, ta vẽ thẳng mạng đường lấy từ chính đồ thị OSM của luận văn.
-   Lợi ích phụ: bản đồ hiện đúng đối tượng nghiên cứu, không phải nền chung.
+   CesiumJS chay HOAN TOAN OFFLINE - khong dung Cesium ion, khong token.
+   Chi ve du lieu Da Nang cua chinh luan van:
+       /api/duong-chinh  mang luoi duong tu do thi OSM
+       /api/mat-nuoc     song, bien, ho
+       /api/doan         12 diem do TomTom, to mau theo muc tac
+
+   Chon Cesium thay vi MapLibre vi de tai can PHAT LAI THEO THOI GIAN:
+   dong ho + dinh dang CZML cua Cesium duoc thiet ke dung cho viec do, va
+   dau ra FCD cua SUMO (vi tri tung xe theo buoc thoi gian) chuyen sang CZML
+   gan nhu mot-mot. Xem docs/plan/06-giai-doan-6-web-app-deploy.md
 --------------------------------------------------------------------------- */
 
 const MAU = {0:'#4b5563',1:'#22c55e',2:'#eab308',3:'#f97316',4:'#ef4444'};
+// Nen da lam toi (brightness 0.32) nen mau duong phai sang len de noi bat.
 const MAU_DUONG = {
-  motorway:'#46566b', trunk:'#3c4a5b', primary:'#333f4d',
-  secondary:'#2a3440', motorway_link:'#3a4757', trunk_link:'#333f4d',
-  primary_link:'#2d3844', secondary_link:'#26303b'
+  motorway:'#9fb4cc', trunk:'#8aa0b8', primary:'#7590a8',
+  secondary:'#5f7890', tertiary:'#4a6076'
 };
-const TL = window.devicePixelRatio || 1;
+const TAM = { lon: 108.2150, lat: 16.0450 };
 
-let thoiDiem = [], doanHienTai = [], dangChon = null;
-let duong = null, cv, ctx, keo = null;
-let view = { lon: 108.2100, lat: 16.0450, scale: 0 };
+let viewer = null, thoiDiem = [], doanHienTai = [], dangChon = null;
+let dangNghieng = false;
 
-/* ---- chiếu Mercator ---- */
-const R = 6378137;
-const toX = lon => R * lon * Math.PI / 180;
-const toY = lat => R * Math.log(Math.tan(Math.PI/4 + lat * Math.PI/360));
-const tuY = y  => (2 * Math.atan(Math.exp(y / R)) - Math.PI/2) * 180 / Math.PI;
-const tuX = x  => x / R * 180 / Math.PI;
+/* ---------------- Cesium ---------------- */
+function khoiTaoCesium(){
+  // Khong dat token -> khong goi Cesium ion lan nao.
+  // Anh nen dung bo Natural Earth dong goi san trong thu vien, nam ngay tren dia.
+  Cesium.Ion.defaultAccessToken = undefined;
 
-const manX = lon => (toX(lon) - toX(view.lon)) * view.scale + cv.width / 2;
-const manY = lat => (toY(view.lat) - toY(lat)) * view.scale + cv.height / 2;
+  viewer = new Cesium.Viewer('ce', {
+    baseLayer: Cesium.ImageryLayer.fromProviderAsync(
+      Cesium.TileMapServiceImageryProvider.fromUrl(
+        Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+      )
+    ),
+    baseLayerPicker:false, geocoder:false, homeButton:false,
+    sceneModePicker:false, navigationHelpButton:false, fullscreenButton:false,
+    infoBox:false, selectionIndicator:false,
+    timeline:false, animation:false,     // bat lai o GD5 khi co CZML tu SUMO
+    requestRenderMode:true               // chi ve lai khi can -> nhe may
+  });
 
-function chinhKichThuoc(){
-  const k = document.getElementById('khung-bd');
-  cv.width  = Math.max(1, k.clientWidth  * TL);
-  cv.height = Math.max(1, k.clientHeight * TL);
-  cv.style.width  = k.clientWidth + 'px';
-  cv.style.height = k.clientHeight + 'px';
+  // Anh nen Natural Earth mac dinh sang mau, lech tong voi giao dien toi.
+  // Ha do sang va do bao hoa de no lui ve lam nen, duong va diem do noi len.
+  if (viewer.imageryLayers.length){
+    const l = viewer.imageryLayers.get(0);
+    l.brightness = 0.55;
+    l.saturation = 0.35;
+    l.contrast    = 1.1;
+  }
+
+  const s = viewer.scene;
+  s.globe.baseColor = Cesium.Color.fromCssColorString('#0d1319');
+  s.globe.showGroundAtmosphere = false;
+  s.skyAtmosphere.show = false;
+  if (s.skyBox) s.skyBox.show = false;
+  s.backgroundColor = Cesium.Color.fromCssColorString('#070a0e');
+  s.fog.enabled = false;
+  s.globe.enableLighting = false;
+
+  veGiua();
+  ganChonDiem();
 }
 
 function veGiua(){
-  view.lon = 108.2100; view.lat = 16.0450;
-  view.scale = cv.height / (toY(16.16) - toY(15.95));
-  veLai();
+  if (!viewer) return;
+  dangNghieng = false;
+  document.getElementById('nut-goc').textContent = 'Nghiêng 3D';
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(TAM.lon, TAM.lat, 26000),
+    orientation: { heading:0, pitch: Cesium.Math.toRadians(-90), roll:0 },
+    duration: 1.2
+  });
 }
 
-function veLai(){
-  if (!cv) return;
-  ctx.fillStyle = '#0b0f14';
-  ctx.fillRect(0, 0, cv.width, cv.height);
+function doiGocNhin(){
+  if (!viewer) return;
+  dangNghieng = !dangNghieng;
+  document.getElementById('nut-goc').textContent = dangNghieng ? 'Nhìn thẳng' : 'Nghiêng 3D';
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(
+      TAM.lon, TAM.lat - (dangNghieng ? 0.09 : 0), dangNghieng ? 11000 : 26000),
+    orientation: {
+      heading: Cesium.Math.toRadians(dangNghieng ? -15 : 0),
+      pitch:   Cesium.Math.toRadians(dangNghieng ? -35 : -90),
+      roll: 0
+    },
+    duration: 1.6
+  });
+}
 
-  if (duong){
-    // view.scale la so pixel tren moi met. O muc nhin ca thanh pho no vao
-    // khoang 0,03 -> net ve phai quanh 1-2px. Chan tren de zoom sau khong
-    // bien duong thanh mang mau.
-    const day = Math.max(0.7, Math.min(6, view.scale * 50)) * TL;
-    for (const f of duong.features){
-      const c = f.geometry.coordinates;
-      let hien = false;
-      ctx.beginPath();
-      for (let i = 0; i < c.length; i++){
-        const x = manX(c[i][0]), y = manY(c[i][1]);
-        if (x > -150 && x < cv.width + 150 && y > -150 && y < cv.height + 150) hien = true;
-        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-      }
-      if (!hien) continue;
-      ctx.strokeStyle = MAU_DUONG[f.properties.h] || '#26303b';
-      ctx.lineWidth = f.properties.w * day;
-      ctx.lineCap = 'round';
-      ctx.stroke();
+async function napNenBanDo(){
+  const tt = document.getElementById('tt-bd');
+  const tai = document.getElementById('tai');
+  if (!viewer) return;
+
+  try{
+    tai.textContent = 'Đang tải mặt nước…';
+    const nuoc = await Cesium.GeoJsonDataSource.load('/api/mat-nuoc', {
+      stroke: Cesium.Color.fromCssColorString('#16344d'),
+      fill:   Cesium.Color.fromCssColorString('#0e2537'),
+      strokeWidth: 1, clampToGround: true
+    });
+    await viewer.dataSources.add(nuoc);
+  }catch(e){ console.warn('Mặt nước:', e.message); }
+
+  tai.textContent = 'Đang tải mạng lưới đường…';
+  try{
+    const dd = await Cesium.GeoJsonDataSource.load('/api/duong-chinh', { clampToGround:true });
+    const ds = dd.entities.values;
+    for (const e of ds){
+      if (!e.polyline) continue;
+      const h = e.properties && e.properties.h ? e.properties.h.getValue() : 'secondary';
+      const w = e.properties && e.properties.w ? e.properties.w.getValue() : 1;
+      e.polyline.material = Cesium.Color.fromCssColorString(MAU_DUONG[h] || '#2d3742');
+      e.polyline.width = Math.max(1.2, w * 1.3);
     }
+    await viewer.dataSources.add(dd);
+    tt.textContent = ds.length.toLocaleString('vi') + ' đoạn đường · OSM · offline';
+    tai.style.display = 'none';
+  }catch(e){
+    tt.textContent = 'chưa có mạng đường';
+    tt.style.color = '#f87171';
+    tai.innerHTML = 'Chưa có file mạng đường.<br>Chạy: <code>python graph/xuat_geojson.py</code>';
+    return;
   }
+  viewer.scene.requestRender();
+}
 
+function veDiemDo(){
+  if (!viewer) return;
+  viewer.entities.removeAll();
   doanHienTai.forEach(s => {
-    const x = manX(s.lon), y = manY(s.lat);
-    const r = (s.segment_id === dangChon ? 9 : 6) * TL;
-    ctx.beginPath(); ctx.arc(x, y, r + 2.5 * TL, 0, 7);
-    ctx.fillStyle = '#0b0f14'; ctx.fill();
-    ctx.beginPath(); ctx.arc(x, y, r, 0, 7);
-    ctx.fillStyle = MAU[s.muc_tac]; ctx.fill();
-    if (s.segment_id === dangChon){
-      ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2.5 * TL; ctx.stroke();
-    }
-  });
-}
-
-function phongTo(he, mx, my){
-  if (!cv) return;
-  const cx = mx !== undefined ? mx * TL : cv.width / 2;
-  const cy = my !== undefined ? my * TL : cv.height / 2;
-  const gX = toX(view.lon) + (cx - cv.width / 2) / view.scale;
-  const gY = toY(view.lat) - (cy - cv.height / 2) / view.scale;
-  view.scale *= he;
-  view.lon = tuX(gX - (cx - cv.width / 2) / view.scale);
-  view.lat = tuY(gY + (cy - cv.height / 2) / view.scale);
-  veLai();
-}
-
-function ganSuKien(){
-  const k = document.getElementById('khung-bd');
-  const tip = document.getElementById('tooltip');
-
-  k.addEventListener('mousedown', e => {
-    keo = { x: e.clientX, y: e.clientY, lon: view.lon, lat: view.lat, dich: false };
-  });
-  window.addEventListener('mouseup', () => setTimeout(() => keo = null, 0));
-
-  window.addEventListener('mousemove', e => {
-    if (keo){
-      if (Math.abs(e.clientX - keo.x) + Math.abs(e.clientY - keo.y) > 3) keo.dich = true;
-      view.lon = tuX(toX(keo.lon) - (e.clientX - keo.x) * TL / view.scale);
-      view.lat = tuY(toY(keo.lat) + (e.clientY - keo.y) * TL / view.scale);
-      veLai();
-      return;
-    }
-    const r = k.getBoundingClientRect();
-    const mx = (e.clientX - r.left) * TL, my = (e.clientY - r.top) * TL;
-    let gan = null;
-    doanHienTai.forEach(s => {
-      if ((manX(s.lon) - mx) ** 2 + (manY(s.lat) - my) ** 2 < (15 * TL) ** 2) gan = s;
-    });
-    if (gan){
-      tip.style.display = 'block';
-      tip.style.left = (e.clientX - r.left + 14) + 'px';
-      tip.style.top  = (e.clientY - r.top + 14) + 'px';
-      tip.innerHTML = '<b>' + gan.ten + '</b><br>' + gan.current_speed + '/'
-                    + gan.freeflow_speed + ' km/h<br>tỷ lệ ' + (gan.speed_ratio ?? '–');
-      k.style.cursor = 'pointer';
-    } else {
-      tip.style.display = 'none';
-      k.style.cursor = 'grab';
-    }
-  });
-
-  k.addEventListener('click', e => {
-    if (keo && keo.dich) return;
-    const r = k.getBoundingClientRect();
-    const mx = (e.clientX - r.left) * TL, my = (e.clientY - r.top) * TL;
-    doanHienTai.forEach(s => {
-      if ((manX(s.lon) - mx) ** 2 + (manY(s.lat) - my) ** 2 < (15 * TL) ** 2) chonDoan(s.segment_id);
+    viewer.entities.add({
+      id: s.segment_id,
+      position: Cesium.Cartesian3.fromDegrees(s.lon, s.lat, 60),
+      point: {
+        pixelSize: s.segment_id === dangChon ? 20 : 14,
+        color: Cesium.Color.fromCssColorString(MAU[s.muc_tac]),
+        outlineColor: Cesium.Color.fromCssColorString(
+          s.segment_id === dangChon ? '#3b82f6' : '#0b0f14'),
+        outlineWidth: s.segment_id === dangChon ? 4 : 2.5,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY
+      },
+      label: {
+        text: s.ten,
+        font: '12px system-ui',
+        fillColor: Cesium.Color.fromCssColorString('#c9d4e0'),
+        showBackground: true,
+        backgroundColor: Cesium.Color.fromCssColorString('#171d26cc'),
+        backgroundPadding: new Cesium.Cartesian2(7,4),
+        pixelOffset: new Cesium.Cartesian2(0,-22),
+        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 60000),
+        disableDepthTestDistance: Number.POSITIVE_INFINITY
+      }
     });
   });
-
-  k.addEventListener('wheel', e => {
-    e.preventDefault();
-    const r = k.getBoundingClientRect();
-    phongTo(e.deltaY < 0 ? 1.25 : 1 / 1.25, e.clientX - r.left, e.clientY - r.top);
-  }, { passive: false });
-
-  window.addEventListener('resize', () => { chinhKichThuoc(); veLai(); });
-
-  // Khung co the chua co kich thuoc that luc trang vua tai (bo cuc chua xong,
-  // hoac pane dang thu nho). Theo doi de tu can lai khi no co kich thuoc.
-  if (window.ResizeObserver){
-    new ResizeObserver(() => {
-      const cu = cv.width;
-      chinhKichThuoc();
-      // neu truoc do canvas gan nhu khong co kich thuoc -> can lai tu dau
-      if (cu < 50 && cv.width >= 50) veGiua(); else veLai();
-    }).observe(document.getElementById('khung-bd'));
-  }
+  viewer.scene.requestRender();
 }
 
-/* ---- API ---- */
+function ganChonDiem(){
+  const h = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+  h.setInputAction(mv => {
+    const p = viewer.scene.pick(mv.position);
+    if (Cesium.defined(p) && p.id && typeof p.id.id === 'string') chonDoan(p.id.id);
+  }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+}
+
+/* ---------------- dữ liệu ---------------- */
 function baoLoi(html){
   document.getElementById('aside').innerHTML = '<div class="err">' + html + '</div>';
   document.getElementById('tomtat').textContent = 'lỗi — xem bảng bên phải';
 }
 async function api(p){
   const r = await fetch(p);
-  if (!r.ok) throw new Error('HTTP ' + r.status + ' tại ' + p + ' — ' + (await r.text()).slice(0, 200));
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' tại ' + p + ' — ' + (await r.text()).slice(0,200));
   return r.json();
 }
 
-async function taiDuong(){
-  const tt = document.getElementById('trangthai-bd');
-  tt.textContent = 'đang tải mạng đường…';
-  try{
-    duong = await api('/api/duong-chinh');
-    tt.textContent = duong.features.length.toLocaleString('vi') + ' đoạn đường · OSM';
-    veLai();
-  }catch(e){
-    tt.textContent = 'chưa có mạng đường';
-    tt.style.color = '#f87171';
-    document.getElementById('chu-thich-bd').innerHTML =
-      'Chưa có file mạng đường. Chạy: <code style="color:#e6edf3">python graph/xuat_geojson.py</code>';
-  }
-}
-
 async function khoiDong(){
-  cv = document.getElementById('bando');
-  ctx = cv.getContext('2d');
-  chinhKichThuoc();
-  ganSuKien();
-  veGiua();
+  try{ khoiTaoCesium(); }
+  catch(e){
+    document.getElementById('tai').innerHTML =
+      'Không khởi tạo được Cesium.<br>' + e.message + '<br><br>'
+      + 'Kiểm tra thư mục <code>services/api/static/vendor/Cesium/</code>';
+  }
 
   let tq;
   try{ tq = await api('/api/tong-quan'); }
   catch(e){
     baoLoi('<b>Chưa đọc được dữ liệu.</b><br><br>' + e.message + '<br><br>'
-      + 'Chạy <code>cd ingest/tomtom &amp;&amp; python collect.py</code> hoặc <code>git pull</code>.'
-      + '<br><br>Và chạy uvicorn <b>từ thư mục gốc repo</b>.');
-    taiDuong();
+      + 'Chạy <code>cd ingest/tomtom &amp;&amp; python collect.py</code> hoặc <code>git pull</code>.');
+    napNenBanDo();
     return;
   }
 
@@ -311,7 +297,8 @@ async function khoiDong(){
   sl.value = sl.max;
   sl.oninput = () => taiDoan(thoiDiem[sl.value]);
   await taiDoan(thoiDiem[sl.max]);
-  taiDuong();
+
+  napNenBanDo();
 }
 
 async function taiDoan(ts){
@@ -319,9 +306,9 @@ async function taiDoan(ts){
   doanHienTai = kq.doan;
   const d = new Date(kq.thoi_diem);
   document.getElementById('nhan').textContent =
-    d.toLocaleString('vi-VN', {weekday:'short', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+    d.toLocaleString('vi-VN',{weekday:'short',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
   veDanhSach();
-  veLai();
+  veDiemDo();
 }
 
 function veDanhSach(){
@@ -332,7 +319,7 @@ function veDanhSach(){
 }
 
 async function chonDoan(id){
-  dangChon = id; veDanhSach(); veLai();
+  dangChon = id; veDanhSach(); veDiemDo();
   try{
     const d = await api('/api/doan/' + id + '/chuoi-thoi-gian');
     document.getElementById('tieude-bd').textContent = 'Tốc độ — ' + d.ten;
@@ -343,39 +330,35 @@ async function chonDoan(id){
 function veBieuDo(diem){
   const c = document.getElementById('bd'), x = c.getContext('2d');
   const W = c.width, H = c.height, P = 30;
-  x.clearRect(0, 0, W, H);
+  x.clearRect(0,0,W,H);
   if (!diem.length) return;
-  const vals = diem.map(p => p.current_speed).filter(v => v != null);
-  const ff = diem.map(p => p.freeflow_speed).filter(v => v != null);
+  const vals = diem.map(p=>p.current_speed).filter(v=>v!=null);
+  const ff = diem.map(p=>p.freeflow_speed).filter(v=>v!=null);
   const max = Math.max(...vals, ...ff, 10) * 1.1;
 
-  x.strokeStyle = '#242c38'; x.lineWidth = 1;
-  for (let i = 0; i <= 4; i++){
-    const y = P + (H - 2*P) * i/4;
-    x.beginPath(); x.moveTo(P, y); x.lineTo(W - 8, y); x.stroke();
-    x.fillStyle = '#8b98a8'; x.font = '11px system-ui';
-    x.fillText(Math.round(max * (1 - i/4)), 4, y + 4);
-  }
+  x.strokeStyle='#242c38'; x.lineWidth=1;
+  for(let i=0;i<=4;i++){ const y=P+(H-2*P)*i/4; x.beginPath(); x.moveTo(P,y); x.lineTo(W-8,y); x.stroke();
+    x.fillStyle='#8b98a8'; x.font='11px system-ui'; x.fillText(Math.round(max*(1-i/4)), 4, y+4); }
 
-  const px = i => P + (W - P - 8) * (diem.length === 1 ? .5 : i / (diem.length - 1));
-  const py = v => P + (H - 2*P) * (1 - v / max);
+  const px = i => P + (W-P-8) * (diem.length===1 ? .5 : i/(diem.length-1));
+  const py = v => P + (H-2*P) * (1 - v/max);
 
-  x.strokeStyle = '#4b5563'; x.setLineDash([4,3]); x.lineWidth = 1.5; x.beginPath();
-  diem.forEach((p, i) => { if (p.freeflow_speed == null) return;
-    i === 0 ? x.moveTo(px(i), py(p.freeflow_speed)) : x.lineTo(px(i), py(p.freeflow_speed)); });
+  x.strokeStyle='#4b5563'; x.setLineDash([4,3]); x.lineWidth=1.5; x.beginPath();
+  diem.forEach((p,i)=>{ if(p.freeflow_speed==null) return;
+    i===0 ? x.moveTo(px(i),py(p.freeflow_speed)) : x.lineTo(px(i),py(p.freeflow_speed)); });
   x.stroke(); x.setLineDash([]);
 
-  x.strokeStyle = '#3b82f6'; x.lineWidth = 2; x.beginPath();
-  diem.forEach((p, i) => { if (p.current_speed == null) return;
-    i === 0 ? x.moveTo(px(i), py(p.current_speed)) : x.lineTo(px(i), py(p.current_speed)); });
+  x.strokeStyle='#3b82f6'; x.lineWidth=2; x.beginPath();
+  diem.forEach((p,i)=>{ if(p.current_speed==null) return;
+    i===0 ? x.moveTo(px(i),py(p.current_speed)) : x.lineTo(px(i),py(p.current_speed)); });
   x.stroke();
 
-  diem.forEach((p, i) => { if (p.current_speed == null) return;
-    x.fillStyle = MAU[p.speed_ratio >= .85 ? 1 : p.speed_ratio >= .65 ? 2 : p.speed_ratio >= .45 ? 3 : 4];
-    x.beginPath(); x.arc(px(i), py(p.current_speed), 3, 0, 7); x.fill(); });
+  diem.forEach((p,i)=>{ if(p.current_speed==null) return;
+    x.fillStyle = MAU[p.speed_ratio>=.85?1:p.speed_ratio>=.65?2:p.speed_ratio>=.45?3:4];
+    x.beginPath(); x.arc(px(i),py(p.current_speed),3,0,7); x.fill(); });
 
-  x.fillStyle = '#8b98a8'; x.font = '11px system-ui';
-  x.fillText('— hiện tại   ---- dòng tự do (km/h)', P, H - 8);
+  x.fillStyle='#8b98a8'; x.font='11px system-ui';
+  x.fillText('— hiện tại   ---- dòng tự do (km/h)', P, H-8);
 }
 
 khoiDong().catch(e => baoLoi('<b>Lỗi không mong đợi.</b><br><br>' + e.message));

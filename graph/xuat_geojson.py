@@ -19,6 +19,7 @@ Chay:
 import os
 import sys
 import json
+import math
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -50,6 +51,19 @@ LOAI_LAY = {
 
 # Bao Da Nang cu - dung de lay mat nuoc
 BBOX = (107.96, 15.92, 108.40, 16.20)      # west, south, east, north
+
+# Vung loi do thi - dung de lay TOA NHA 3D. Hep hon nhieu vi so toa nha
+# rat lon; lay ca thanh pho thi file nang hang chuc MB va may ve khong noi.
+BBOX_NHA = (108.175, 16.020, 108.255, 16.095)
+
+# Chieu cao mac dinh theo loai nha, dung khi OSM khong ghi height/levels.
+# Du lieu chieu cao o Viet Nam rat thua nen phan lon se dung gia tri nay.
+CAO_MAC_DINH = {
+    "apartments": 18, "commercial": 15, "retail": 10, "office": 24,
+    "hotel": 30, "hospital": 20, "school": 12, "university": 18,
+    "industrial": 9, "warehouse": 8, "church": 14, "public": 15,
+    "house": 7, "residential": 9, "yes": 8,
+}
 
 
 def lam_gon(toa_do, buoc=15):
@@ -126,6 +140,69 @@ def xuat_mat_nuoc():
     ghi("mat_nuoc.geojson", features)
 
 
+def _so(v):
+    """Doi sang so thuc hop le, tra ve None neu khong duoc.
+
+    QUAN TRONG: o dong pandas, o trong tra ve NaN chu khong phai None, va
+    float('nan') KHONG nem loi. Neu khong kiem tra isfinite thi NaN se lot
+    vao file JSON, lam ca file khong doc duoc (JSON khong co kieu NaN).
+    """
+    if v is None:
+        return None
+    try:
+        x = float(str(v).replace("m", "").split(";")[0].strip())
+    except Exception:
+        return None
+    return x if math.isfinite(x) and 0 < x < 500 else None
+
+
+def doc_chieu_cao(row):
+    """Uu tien height, roi building:levels x 3,3m, cuoi cung la mac dinh."""
+    for k in ("height", "building:height"):
+        x = _so(row.get(k))
+        if x:
+            return x
+    for k in ("building:levels", "levels"):
+        x = _so(row.get(k))
+        if x:
+            return max(3.0, x * 3.3)
+    loai = str(row.get("building", "yes"))
+    return float(CAO_MAC_DINH.get(loai, 8))
+
+
+def xuat_toa_nha():
+    """Toa nha 3D: chan de + chieu cao, de Cesium dun khoi len."""
+    print("Tai toa nha tu OSM (vung loi do thi, co the mat 2-5 phut)...")
+    features = []
+    try:
+        from shapely.geometry import mapping
+
+        w, s_, e, n = BBOX_NHA
+        gdf = ox.features_from_bbox(bbox=(w, s_, e, n), tags={"building": True})
+        print(f"  OSM tra ve {len(gdf):,} toa nha")
+
+        # bo nha qua nho: giu cho canh nhin thoang va file nhe
+        m2_toi_thieu = 120
+        for _, row in gdf.iterrows():
+            g = row.geometry
+            if g is None or g.geom_type not in ("Polygon", "MultiPolygon"):
+                continue
+            # dien tich xap xi ra m2 (1 do ~ 111km)
+            if g.area * (111000 ** 2) < m2_toi_thieu:
+                continue
+            gj = mapping(g.simplify(0.00003, preserve_topology=True))
+            features.append({
+                "type": "Feature",
+                "geometry": gj,
+                "properties": {"c": round(doc_chieu_cao(row), 1)},
+            })
+        print(f"  Giu lai {len(features):,} toa nha (bo nha < {m2_toi_thieu} m2)")
+    except Exception as ex:
+        print(f"  Khong lay duoc toa nha: {type(ex).__name__}: {str(ex)[:120]}")
+
+    ghi("toa_nha.geojson", features)
+
+
 def ghi(ten, features):
     os.makedirs(THU_MUC, exist_ok=True)
     dich = os.path.join(THU_MUC, ten)
@@ -139,4 +216,5 @@ def ghi(ten, features):
 if __name__ == "__main__":
     xuat_duong()
     xuat_mat_nuoc()
+    xuat_toa_nha()
     print("\nXong. Tai lai trang web de xem.")

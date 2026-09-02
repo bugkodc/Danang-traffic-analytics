@@ -192,6 +192,16 @@ def mat_nuoc():
     return FileResponse(f, media_type="application/geo+json")
 
 
+@app.get("/api/toa-nha")
+def toa_nha():
+    """Chan de + chieu cao toa nha, de Cesium dun khoi 3D."""
+    f = os.path.join(ROOT, "serving", "toa_nha.geojson")
+    if not os.path.exists(f):
+        raise HTTPException(404, "Chua co toa_nha.geojson. "
+                                 "Chay: python graph/xuat_geojson.py")
+    return FileResponse(f, media_type="application/geo+json")
+
+
 # --- phuc vu trang web tinh ---
 if os.path.isdir(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

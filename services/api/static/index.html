@@ -126,7 +126,8 @@ function khoiTaoCesium(){
     sceneModePicker:false, navigationHelpButton:false, fullscreenButton:false,
     infoBox:false, selectionIndicator:false,
     timeline:false, animation:false,     // bat lai o GD5 khi co CZML tu SUMO
-    requestRenderMode:true               // chi ve lai khi can -> nhe may
+    // KHONG bat requestRenderMode: no dong bang vong lap ve, khien
+    // camera.flyTo khong chay va camera ket o vi tri mac dinh.
   });
 
   // Anh nen Natural Earth mac dinh sang mau, lech tong voi giao dien toi.
@@ -147,41 +148,60 @@ function khoiTaoCesium(){
   s.fog.enabled = false;
   s.globe.enableLighting = false;
 
-  veGiua();
+  veGiua(true);      // tuc thi, khong doi animation
   ganChonDiem();
 }
 
-function veGiua(){
+// Bay camera co animation, nhung neu tab dang an thi trinh duyet tam dung
+// requestAnimationFrame -> animation khong tien. Khi do dat thang vi tri.
+function bayToi(dich, giay){
+  if (!giay || document.hidden){
+    viewer.camera.setView(dich);
+    viewer.scene.requestRender();
+    return;
+  }
+  viewer.camera.flyTo({ ...dich, duration: giay,
+    complete: () => viewer.scene.requestRender() });
+  // chan an toan: neu sau thoi luong bay ma chua toi noi thi dat thang
+  setTimeout(() => {
+    const h = viewer.camera.positionCartographic.height;
+    const dich_h = Cesium.Cartographic.fromCartesian(dich.destination).height;
+    if (Math.abs(h - dich_h) > dich_h * 0.2) viewer.camera.setView(dich);
+  }, giay * 1000 + 800);
+}
+
+
+function veGiua(tucThi){
   if (!viewer) return;
   dangNghieng = false;
   document.getElementById('nut-goc').textContent = 'Nghiêng 3D';
-  viewer.camera.flyTo({
+  const dich = {
     destination: Cesium.Cartesian3.fromDegrees(TAM.lon, TAM.lat, 26000),
-    orientation: { heading:0, pitch: Cesium.Math.toRadians(-90), roll:0 },
-    duration: 1.2
-  });
+    orientation: { heading:0, pitch: Cesium.Math.toRadians(-90), roll:0 }
+  };
+  bayToi(dich, tucThi ? 0 : 1.2);
 }
 
 function doiGocNhin(){
   if (!viewer) return;
   dangNghieng = !dangNghieng;
   document.getElementById('nut-goc').textContent = dangNghieng ? 'Nhìn thẳng' : 'Nghiêng 3D';
-  viewer.camera.flyTo({
+  bayToi({
     destination: Cesium.Cartesian3.fromDegrees(
-      TAM.lon, TAM.lat - (dangNghieng ? 0.09 : 0), dangNghieng ? 11000 : 26000),
+      TAM.lon, TAM.lat - (dangNghieng ? 0.032 : 0), dangNghieng ? 3200 : 26000),
     orientation: {
       heading: Cesium.Math.toRadians(dangNghieng ? -15 : 0),
-      pitch:   Cesium.Math.toRadians(dangNghieng ? -35 : -90),
+      pitch:   Cesium.Math.toRadians(dangNghieng ? -28 : -90),
       roll: 0
-    },
-    duration: 1.6
-  });
+    }
+  }, 1.6);
 }
 
 async function napNenBanDo(){
   const tt = document.getElementById('tt-bd');
   const tai = document.getElementById('tai');
   if (!viewer) return;
+  let soNha = 0;
 
   try{
     tai.textContent = 'Đang tải mặt nước…';
@@ -192,6 +212,29 @@ async function napNenBanDo(){
     });
     await viewer.dataSources.add(nuoc);
   }catch(e){ console.warn('Mặt nước:', e.message); }
+
+  // --- toa nha 3D: dun khoi theo chieu cao ---
+  tai.textContent = 'Đang dựng khối nhà 3D…';
+  try{
+    const nha = await Cesium.GeoJsonDataSource.load('/api/toa-nha', { clampToGround:false });
+    for (const e of nha.entities.values){
+      if (!e.polygon) continue;
+      const c = e.properties && e.properties.c ? e.properties.c.getValue() : 8;
+      e.polygon.extrudedHeight = c;                       // chieu cao that
+      e.polygon.height = 0;
+      e.polygon.perPositionHeight = false;
+      // nha cao thi sang hon -> nhin ra duoc do cao ngay tu mau
+      const t = Math.min(1, c / 40);
+      e.polygon.material = Cesium.Color.fromCssColorString('#7d8ea3')
+                             .brighten(t * 0.35, new Cesium.Color())
+                             .withAlpha(0.92);
+      e.polygon.outline = true;
+      e.polygon.outlineColor = Cesium.Color.fromCssColorString('#39485a');
+      e.polygon.outlineWidth = 1;
+    }
+    await viewer.dataSources.add(nha);
+    soNha = nha.entities.values.length;
+  }catch(e){ console.warn('Toà nhà:', e.message); }
 
   tai.textContent = 'Đang tải mạng lưới đường…';
   try{
@@ -205,7 +248,8 @@ async function napNenBanDo(){
       e.polyline.width = Math.max(1.2, w * 1.3);
     }
     await viewer.dataSources.add(dd);
-    tt.textContent = ds.length.toLocaleString('vi') + ' đoạn đường · OSM · offline';
+    tt.textContent = ds.length.toLocaleString('vi') + ' đoạn · '
+      + soNha.toLocaleString('vi') + ' toà nhà 3D · offline';
     tai.style.display = 'none';
   }catch(e){
     tt.textContent = 'chưa có mạng đường';

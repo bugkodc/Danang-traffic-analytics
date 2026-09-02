@@ -1,60 +1,57 @@
 name: Thu thap du lieu TomTom
 
-# Chay tren ha tang GitHub, KHONG can may ca nhan bat 24/24.
-#
 # ---------------------------------------------------------------------------
-# THIET KE LICH - da doi ngay 02/09/2026 sau khi thu nghiem that bai
+# THIET KE - cap nhat 02/09/2026 (lan 3)
 # ---------------------------------------------------------------------------
-# Lan dau dung cron 10-20 phut/lan. Ket qua: sau 95 phut, 0 lan chay tu dong.
-# Nguyen nhan: GitHub ghi ro su kien `schedule` co the bi hoan hoac BO QUA
-# khi he thong tai cao, va lich duoi 1 gio thuc te rat khong dang tin,
-# dac biet voi repo cong khai o goi mien phi.
+# Van de: bo lap lich cua GitHub KHONG chay cho repo nay. Sau hon 2 gio,
+# ca cron 20 phut lan cron moi gio deu cho ra 0 lan chay tu dong.
 #
-# Thiet ke moi: chi dua vao cron MOI GIO (tang dang tin cay cao hon han),
-# va lay nhieu mau NGAY TRONG mot lan chay bang vong lap noi bo.
-#   - Cron chay luc phut :05 moi gio  (tranh dau gio la luc GitHub dong nhat)
-#   - Moi lan chay: goi API 3 lan, cach nhau 15 phut  -> ~:05, :20, :35
-#   - Job keo dai ~31 phut, commit mot lan o cuoi
+# Giai phap: giam so lan CAN kich hoat xuong muc thap nhat co the.
+# Thay vi 24-96 lan/ngay, chi can 4 lan/ngay:
 #
-# Loi ich: van giu do phan giai 15 phut, nhung chi can cron moi gio chay dung.
-# Neu mot gio bi bo qua, chi mat 1 gio du lieu chu khong mat ca ngay.
+#   - Moi lan chay keo dai ~5,5 gio (gioi han cung cua GitHub la 6 gio)
+#   - Trong 5,5 gio do: lay mau moi 15 phut, COMMIT sau moi 4 mau (~1 gio)
+#   - Cron moi 6 gio  ->  4 lan/ngay  ->  phu ~22 gio/ngay
 #
-# Quota TomTom: 3 lan/gio x 24 gio x 12 doan = 864 request/ngay,
-# nam gon trong han muc mien phi 2.500/ngay, con du mo rong len ~30 doan.
+# Commit dinh ky thay vi commit mot lan o cuoi: neu job hong giua chung,
+# chi mat toi da 1 gio du lieu chu khong mat ca 5,5 gio.
+#
+# LUU Y: GitHub GIET job sau 6 gio, khong the chay vo han. Muon lien tuc
+# thi phai co nguon kich hoat moi 6 gio (cron GitHub, hoac cron ngoai
+# qua repository_dispatch - xem ingest/tomtom/CHAY-TREN-GITHUB.md).
+#
+# Quota TomTom: 22 mau x 4 lan x 12 doan = 1.056 request/ngay,
+# nam trong han muc mien phi 2.500/ngay.
 # ---------------------------------------------------------------------------
 
 on:
   schedule:
-    - cron: '5 * * * *'     # moi gio, phut thu 5 -> mac dinh 3 mau/lan
+    - cron: '5 */6 * * *'     # 4 lan/ngay: 00:05, 06:05, 12:05, 18:05 UTC
 
-  # Bam chay tay. Co tham so de mot lan bam phu duoc NHIEU GIO,
-  # dung khi bo lap lich cua GitHub khong hoat dong.
   workflow_dispatch:
     inputs:
-      so_lan:
-        description: 'So lan lay mau trong mot lan chay (22 lan x 15 phut = ~5,5 gio)'
+      thoi_luong_phut:
+        description: 'Chay trong bao nhieu phut (toi da 330 - gioi han GitHub la 6 gio)'
         required: false
-        default: '22'
+        default: '330'
       nghi_phut:
         description: 'Nghi bao nhieu phut giua hai lan lay mau'
         required: false
         default: '15'
+      commit_moi:
+        description: 'Commit sau moi bao nhieu lan lay mau'
+        required: false
+        default: '4'
 
-  # PHUONG AN DU PHONG - cong kich hoat tu ben ngoai.
-  # GitHub ghi ro su kien schedule co the bi hoan hoac bo qua khi he thong
-  # tai cao; lich duoi 1 gio rat khong dang tin. Neu schedule khong on dinh,
-  # dung mot dich vu cron mien phi ben ngoai (vd cron-job.org) goi:
-  #
+  # Cong kich hoat tu ben ngoai - dung khi cron GitHub khong chay.
+  # Dat cron-job.org goi moi 6 gio:
   #   POST https://api.github.com/repos/bugkodc/Danang-traffic-analytics/dispatches
-  #   Header: Authorization: Bearer <PAT co quyen repo>
+  #   Header: Authorization: Bearer <PAT classic, scope repo>
   #           Accept: application/vnd.github+json
   #   Body:   {"event_type": "thu-thap"}
-  #
-  # Dich vu cron ben ngoai chay dung gio hon GitHub scheduler nhieu.
   repository_dispatch:
     types: [thu-thap]
 
-# Chan hai lan chay chong len nhau gay xung dot khi commit
 concurrency:
   group: thu-thap-tomtom
   cancel-in-progress: false
@@ -62,9 +59,9 @@ concurrency:
 jobs:
   thu-thap:
     runs-on: ubuntu-latest
-    timeout-minutes: 350    # du cho 22 lan x 15 phut khi bam tay (gioi han GitHub la 360)
+    timeout-minutes: 350      # 330 phut chay + du phong; gioi han GitHub la 360
     permissions:
-      contents: write       # can quyen ghi de commit du lieu nguoc lai repo
+      contents: write
 
     steps:
       - uses: actions/checkout@v5
@@ -76,42 +73,123 @@ jobs:
       - name: Cai thu vien
         run: pip install --quiet requests pandas pyarrow
 
-      - name: Goi API nhieu lan trong mot lan chay
+      - name: Vong lap thu thap va commit dinh ky
         env:
           TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
-          # Chay theo lich  -> inputs rong -> mac dinh 3 lan x 15 phut (~31 phut)
-          # Bam chay tay     -> lay theo tham so nguoi dung nhap
-          SO_LAN:    ${{ github.event.inputs.so_lan    || '3'  }}
-          NGHI_PHUT: ${{ github.event.inputs.nghi_phut || '15' }}
-        working-directory: ingest/tomtom
+          THOI_LUONG:  ${{ github.event.inputs.thoi_luong_phut || '330' }}
+          NGHI_PHUT:   ${{ github.event.inputs.nghi_phut       || '15'  }}
+          COMMIT_MOI:  ${{ github.event.inputs.commit_moi      || '4'   }}
+          NHANH: ${{ github.ref_name }}
         run: |
-          echo "Se lay $SO_LAN mau, cach nhau $NGHI_PHUT phut."
-          echo "Tong thoi gian du kien: $(( (SO_LAN - 1) * NGHI_PHUT )) phut."
-          echo ""
-          for i in $(seq 1 "$SO_LAN"); do
-            echo "--- Lan lay mau $i/$SO_LAN  ($(TZ=Asia/Ho_Chi_Minh date '+%H:%M') gio VN) ---"
-            python collect.py || echo "Lan $i that bai, bo qua va di tiep"
-            if [ "$i" -lt "$SO_LAN" ]; then
-              sleep $(( NGHI_PHUT * 60 ))
-            fi
-          done
-
-      - name: Commit du lieu
-        run: |
+          set -u
           git config user.name  "tomtom-collector"
           git config user.email "actions@github.com"
-          git add ingest/tomtom/data/
-          if git diff --staged --quiet; then
-            echo "Khong co du lieu moi."
+
+          # Ham commit - khong bao gio lam chet vong lap
+          day_du_lieu() {
+            git add ingest/tomtom/data/
+            if git diff --staged --quiet; then
+              echo "   (khong co du lieu moi de commit)"
+              return 0
+            fi
+            git commit -q -m "du lieu tomtom $(date -u +'%Y-%m-%d %H:%M UTC')"
+            for k in 1 2 3 4 5; do
+              if git pull --rebase --autostash -q origin "$NHANH" && git push -q; then
+                echo "   -> da commit va day len GitHub"
+                return 0
+              fi
+              echo "   (day that bai lan $k, thu lai sau 10s)"
+              sleep 10
+            done
+            echo "   !! khong day duoc, giu lai commit cho vong sau"
+            return 0
+          }
+
+          BAT_DAU=$(date +%s)
+          HAN=$(( BAT_DAU + THOI_LUONG * 60 ))
+          i=0
+
+          echo "Chay trong $THOI_LUONG phut, lay mau moi $NGHI_PHUT phut,"
+          echo "commit sau moi $COMMIT_MOI lan. Du kien ~$(( THOI_LUONG / NGHI_PHUT + 1 )) mau."
+          echo ""
+
+          while [ "$(date +%s)" -lt "$HAN" ]; do
+            i=$(( i + 1 ))
+            echo "--- Mau $i  ($(TZ=Asia/Ho_Chi_Minh date '+%H:%M') gio VN) ---"
+            ( cd ingest/tomtom && python collect.py ) || echo "   (lan nay that bai, di tiep)"
+
+            if [ $(( i % COMMIT_MOI )) -eq 0 ]; then
+              day_du_lieu
+            fi
+
+            # chi nghi neu con du thoi gian cho mau tiep theo
+            CON_LAI=$(( HAN - $(date +%s) ))
+            if [ "$CON_LAI" -le $(( NGHI_PHUT * 60 )) ]; then break; fi
+            sleep $(( NGHI_PHUT * 60 ))
+          done
+
+          echo ""
+          echo "=== Ket thuc: da lay $i mau. Commit lan cuoi. ==="
+          day_du_lieu
+
+          # ghi lai de buoc noi chuoi biet job da chay bao lau
+          PHUT_DA_CHAY=$(( ( $(date +%s) - BAT_DAU ) / 60 ))
+          echo "PHUT_DA_CHAY=$PHUT_DA_CHAY" >> "$GITHUB_ENV"
+          echo "SO_MAU=$i" >> "$GITHUB_ENV"
+
+      # ---------------------------------------------------------------------
+      # TU NOI CHUOI - de chay 24/24 ma khong can bam tay
+      # ---------------------------------------------------------------------
+      # GitHub giet job sau 6 gio, nen mot job khong the chay mai. Buoc nay
+      # goi API tu kich hoat lan chay tiep theo, tao thanh chuoi vo han:
+      #     job -> job -> job -> ...
+      #
+      # CAN: mot secret ten PAT_TU_CHAY (Personal Access Token classic,
+      #      scope `repo`). Cat mot lan vao Settings > Secrets, khong dung lai.
+      #      Neu chua co secret nay, buoc nay tu bo qua, khong bao loi.
+      #
+      # DUNG CHUOI: xoa secret PAT_TU_CHAY. Lan chay dang dien ra van xong
+      #             binh thuong, nhung se khong kich hoat lan tiep theo.
+      #
+      # CHONG CHAY LOAN: chi noi chuoi khi job da chay >= 10 phut va lay
+      #                  duoc >= 1 mau. Neu job chet som, chuoi dung lai de
+      #                  ban kiem tra, tranh vong lap quay tit dot tai nguyen.
+      # ---------------------------------------------------------------------
+      - name: Tu kich hoat lan chay tiep theo
+        if: always()
+        env:
+          PAT: ${{ secrets.PAT_TU_CHAY }}
+        run: |
+          if [ -z "${PAT:-}" ]; then
+            echo "Chua cai secret PAT_TU_CHAY -> khong tu noi chuoi."
+            echo "Xem huong dan o ingest/tomtom/CHAY-TREN-GITHUB.md"
             exit 0
           fi
-          git commit -m "du lieu tomtom $(date -u +'%Y-%m-%d %H:%M UTC')"
-          # thu day toi 5 lan, rebase neu co lan chay khac vua commit truoc
-          for i in 1 2 3 4 5; do
-            git pull --rebase --autostash origin ${{ github.ref_name }} && \
-            git push && exit 0
-            echo "Lan $i that bai, thu lai sau 10s..."
-            sleep 10
-          done
-          echo "Khong day duoc sau 5 lan thu."
-          exit 1
+
+          PHUT=${PHUT_DA_CHAY:-0}
+          MAU=${SO_MAU:-0}
+          if [ "$PHUT" -lt 10 ] || [ "$MAU" -lt 1 ]; then
+            echo "Job chi chay $PHUT phut, lay $MAU mau -> co ve co su co."
+            echo "DUNG CHUOI de tranh vong lap quay tit. Hay kiem tra log."
+            exit 0
+          fi
+
+          echo "Job da chay $PHUT phut, lay $MAU mau. Kich hoat lan tiep theo..."
+          MA=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $PAT" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            -d '{"event_type":"thu-thap"}' \
+            "https://api.github.com/repos/${{ github.repository }}/dispatches")
+
+          if [ "$MA" = "204" ]; then
+            echo "-> Da kich hoat lan chay tiep theo. Chuoi tiep tuc."
+          else
+            echo "-> That bai, HTTP $MA."
+            case "$MA" in
+              401) echo "   Token sai hoac het han." ;;
+              403) echo "   Token thieu scope 'repo'." ;;
+              404) echo "   Sai duong dan repo, hoac token khong thay repo." ;;
+            esac
+            echo "   Chuoi DUNG. Cron moi 6 gio se la phuong an du phong."
+          fi

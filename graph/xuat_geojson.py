@@ -66,12 +66,31 @@ CAO_MAC_DINH = {
 }
 
 
-def lam_gon(toa_do, buoc=15):
-    ra = []
-    for i, (x, y) in enumerate(toa_do):
-        if i == 0 or i == len(toa_do) - 1 or i % buoc == 0:
-            ra.append([round(x, 5), round(y, 5)])
-    return ra if len(ra) >= 2 else [[round(x, 5), round(y, 5)] for x, y in toa_do[:2]]
+# Sai so hinh hoc toi da khi lam gon, tinh bang do.
+# 0,000012 do ~ 1,3 m tren thuc dia -> mat thuong khong phan biet duoc,
+# nhung file van nho vi cac doan thang duoc gop lai.
+SAI_SO = 0.000012
+
+
+def lam_gon(toa_do):
+    """Lam gon hinh hoc bang Douglas-Peucker (giu dung hinh dang).
+
+    KHONG dung cach 'giu 1 diem moi N diem': cach do CAT GOC CUA, lam duong
+    thang ra va lech khoi tim duong that - duong cong bi bien thanh duong gay.
+    Douglas-Peucker bo diem theo SAI SO HINH HOC: doan thang thi bo nhieu
+    diem, doan cong thi giu lai du diem de khong meo.
+    """
+    if len(toa_do) < 3:
+        return [[round(x, 6), round(y, 6)] for x, y in toa_do]
+    try:
+        from shapely.geometry import LineString
+        g = LineString(toa_do).simplify(SAI_SO, preserve_topology=False)
+        c = list(g.coords)
+        if len(c) >= 2:
+            return [[round(x, 6), round(y, 6)] for x, y in c]
+    except Exception:
+        pass
+    return [[round(x, 6), round(y, 6)] for x, y in toa_do]
 
 
 def xuat_duong():

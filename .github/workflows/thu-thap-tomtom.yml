@@ -1,0 +1,69 @@
+name: Thu thap du lieu TomTom
+
+# Chay tren ha tang GitHub, KHONG can may ca nhan bat 24/24.
+#
+# Lich lay mau thich ung theo gio (gio ghi theo UTC, Viet Nam = UTC+7):
+#   - Cao diem  VN 05:00-09:00 va 16:00-20:00  ->  10 phut/lan
+#   - Con lai                                   ->  20 phut/lan
+#
+# Cac phut le (3,13,23,... va 7,27,47) la co y:
+#   1. Tranh dau gio la luc GitHub Actions dong nghet nhat -> it bi tre
+#   2. Tao do lech tu nhien, chong sai lech he thong do lay mau dung chu ky
+#
+# Quota: ~96 lan/ngay x 12 doan = ~1.152 request/ngay, nam trong han muc
+# mien phi 2.500/ngay cua TomTom, con du de mo rong len ~20 doan.
+
+on:
+  schedule:
+    # cao diem sang (UTC 22-01) va chieu (UTC 09-12)
+    - cron: '3,13,23,33,43,53 22,23,0,1,9,10,11,12 * * *'
+    # cac khung gio con lai
+    - cron: '7,27,47 2-8,13-21 * * *'
+  workflow_dispatch:        # cho phep bam chay tay de test
+
+# Chan hai lan chay chong len nhau gay xung dot khi commit
+concurrency:
+  group: thu-thap-tomtom
+  cancel-in-progress: false
+
+jobs:
+  thu-thap:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # can quyen ghi de commit du lieu nguoc lai repo
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cai thu vien
+        run: pip install --quiet requests pandas pyarrow
+
+      - name: Goi API va ghi du lieu
+        env:
+          TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
+        run: python collect.py
+        working-directory: ingest/tomtom
+
+      - name: Commit du lieu
+        run: |
+          git config user.name  "tomtom-collector"
+          git config user.email "actions@github.com"
+          git add ingest/tomtom/data/
+          if git diff --staged --quiet; then
+            echo "Khong co du lieu moi."
+            exit 0
+          fi
+          git commit -m "du lieu tomtom $(date -u +'%Y-%m-%d %H:%M UTC')"
+          # thu day toi 5 lan, rebase neu co lan chay khac vua commit truoc
+          for i in 1 2 3 4 5; do
+            git pull --rebase --autostash origin ${{ github.ref_name }} && \
+            git push && exit 0
+            echo "Lan $i that bai, thu lai sau 10s..."
+            sleep 10
+          done
+          echo "Khong day duoc sau 5 lan thu."
+          exit 1

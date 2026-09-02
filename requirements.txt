@@ -1,0 +1,10 @@
+# Thu thap du lieu
+requests>=2.31
+pandas>=2.2
+pyarrow>=16.0
+
+# Cac giai doan sau se bo sung:
+# osmnx, networkx, igraph        - do thi OSM
+# ultralytics, rfdetr, supervision - thi giac may tinh
+# pyspark, graphframes            - xu ly phan tan
+# fastapi, uvicorn, duckdb        - tang phuc vu

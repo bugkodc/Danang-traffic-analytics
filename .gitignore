@@ -1,0 +1,81 @@
+# =============================================================
+# BI MAT - TUYET DOI khong commit
+# =============================================================
+.env
+*.key
+secrets.*
+
+
+# =============================================================
+# TAI LIEU CO BAN QUYEN - khong duoc phat tan lai tren repo cong khai
+# =============================================================
+EL_*.pdf
+IJCS_*.pdf
+*.pdf
+
+
+# =============================================================
+# TAI LIEU CA NHAN / noi bo - khong cong khai
+# =============================================================
+decuong.txt
+slides.txt
+PPLNCKH*
+*_DoNgocQuangLuan*
+
+
+# =============================================================
+# TAI LIEU MON HOC / bai tap cu - khong lien quan de tai
+# =============================================================
+Big Data and application.pptx
+Tao Ma Trận.pptx
+Nhan_Hai_Ma_Tran_MxN/
+Nhan_Hai_Ma_Tran_MxN.rar
+Biên dịch và chạy chương trình*.docx
+
+
+# =============================================================
+# DU LIEU THO NANG - khong commit
+# =============================================================
+data/raw/video/
+data/interim/
+*.mp4
+*.mov
+*.mkv
+*.osm.pbf
+*.osm.xml
+
+
+# =============================================================
+# MO HINH - dung Git LFS hoac luu ngoai
+# =============================================================
+models/
+*.pt
+*.pth
+*.onnx
+
+
+# =============================================================
+# Python
+# =============================================================
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+
+
+# =============================================================
+# He dieu hanh & log
+# =============================================================
+Thumbs.db
+desktop.ini
+.DS_Store
+*.log
+
+
+# =============================================================
+# NGOAI LE - CO commit
+# =============================================================
+# tomtom/data/*.parquet la du lieu chuoi thoi gian KHONG TAI TAO DUOC.
+# Commit vao git de tu dong co sao luu va lich su phien ban.
+!tomtom/data/*.parquet

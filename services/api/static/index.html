@@ -143,7 +143,10 @@ function veLai(){
   ctx.fillRect(0, 0, cv.width, cv.height);
 
   if (duong){
-    const day = Math.max(0.5, view.scale * 260000);
+    // view.scale la so pixel tren moi met. O muc nhin ca thanh pho no vao
+    // khoang 0,03 -> net ve phai quanh 1-2px. Chan tren de zoom sau khong
+    // bien duong thanh mang mau.
+    const day = Math.max(0.7, Math.min(6, view.scale * 50)) * TL;
     for (const f of duong.features){
       const c = f.geometry.coordinates;
       let hien = false;

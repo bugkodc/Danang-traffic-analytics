@@ -1,0 +1,43 @@
+name: Kiem tra lich GitHub
+
+# ---------------------------------------------------------------------------
+# WORKFLOW TAM THOI - CHI DE DO XEM SCHEDULER CUA GITHUB CO CHAY KHONG
+# ---------------------------------------------------------------------------
+# Muc dich: thay vi dat lich thu thap roi cho ca tieng moi biet hong,
+# chay mot job sieu nhe moi 5 phut (chu ky nho nhat GitHub cho phep)
+# de do TY LE KICH HOAT THUC TE cua repo nay.
+#
+# Cach dung:
+#   1. Bat workflow nay, de chay 1-2 gio
+#   2. Vao tab Actions dem so lan chay co event = schedule
+#      - Ly thuyet: 12 lan/gio
+#      - Neu >= 8 lan/gio  -> scheduler on, dung lich moi gio cho job that
+#      - Neu 3-7 lan/gio   -> scheduler cham nhung dung duoc
+#      - Neu 0-2 lan/gio   -> scheduler khong dung duoc, phai dung cron ngoai
+#   3. Do xong thi XOA FILE NAY di, dung de chay mai
+#
+# Job khong goi API nao, khong commit gi, chi in dau thoi gian.
+# ---------------------------------------------------------------------------
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: kiem-tra-lich
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: In dau thoi gian
+        run: |
+          echo "Kich hoat boi : ${{ github.event_name }}"
+          echo "Thoi diem UTC : $(date -u '+%Y-%m-%d %H:%M:%S')"
+          echo "Thoi diem VN  : $(TZ=Asia/Ho_Chi_Minh date '+%Y-%m-%d %H:%M:%S')"
+          echo ""
+          echo "Neu dong tren ghi 'schedule' thi bo lap lich CO chay."
+          echo "Neu ghi 'workflow_dispatch' thi day la lan bam tay."

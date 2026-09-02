@@ -166,6 +166,22 @@ def ho_so_theo_gio():
     return g.to_dict("records")
 
 
+@app.get("/api/duong-chinh")
+def duong_chinh():
+    """
+    Hinh hoc cac truc duong chinh, xuat tu chinh do thi OSM da tai ve.
+    Dung de web tu ve ban do ma khong phu thuoc may chu tile ben ngoai
+    (mang o Viet Nam hay chan CARTO / OpenFreeMap / OSM tiles).
+
+    Sinh file bang: python graph/xuat_geojson.py
+    """
+    f = os.path.join(ROOT, "serving", "duong_chinh.geojson")
+    if not os.path.exists(f):
+        raise HTTPException(404, "Chua co duong_chinh.geojson. "
+                                 "Chay: python graph/xuat_geojson.py")
+    return FileResponse(f, media_type="application/geo+json")
+
+
 # --- phuc vu trang web tinh ---
 if os.path.isdir(STATIC_DIR):
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

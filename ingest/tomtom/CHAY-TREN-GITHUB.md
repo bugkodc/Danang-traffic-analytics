@@ -135,3 +135,35 @@ Nếu sau này cần độ phân giải cao hơn cho một đoạn cụ thể, g
 | Chỉ cần tạm thời | Để máy cá nhân bật với Task Scheduler — chấp nhận mất dữ liệu những lúc máy tắt |
 
 Không nên dùng Google Colab (không chạy nền được) hay PythonAnywhere bản miễn phí (chỉ cho 1 tác vụ theo lịch mỗi ngày).
+
+---
+
+## Xử lý sự cố — job xanh nhưng không có dữ liệu mới
+
+**Sự cố 18/09 – 29/09/2026:** job vẫn chạy và báo ✅ nhưng không có commit dữ liệu nào trong 11 ngày.
+Nguyên nhân gốc: workflow cũ **nuốt mọi lỗi** — `collect.py` lỗi thì in ra rồi chạy tiếp, đẩy lên thất bại
+vẫn coi là thành công. Khả năng cao nhất là API key cũ đã bị xoá (khi đổi key vì bị lộ) nhưng secret
+`TOMTOM_API_KEY` trên GitHub vẫn giữ key cũ.
+
+Từ 29/09/2026 workflow đã được sửa để **báo đỏ ❌ và hiện thông báo lỗi trên trang Actions** khi:
+
+| Tình huống | Thông báo |
+|---|---|
+| Thiếu secret | `Chua co secret TOMTOM_API_KEY` |
+| Key bị từ chối (HTTP 401/403) | `TomTom tu choi API key...` — dừng ngay ở mẫu đầu tiên |
+| Lỗi liên tiếp ≥ 4 lần (~1 giờ), kể cả hết hạn mức 429 | `Lay mau that bai N lan lien tiep` |
+| Không đẩy được dữ liệu lên GitHub | `Khong day duoc du lieu` — kiểm tra *Settings → Actions → General → Workflow permissions* |
+
+Cuối mỗi lần chạy, trang tóm tắt ghi `✅ X/Y mau thanh cong`. Chuỗi tự kích hoạt chỉ tiếp tục khi có ít
+nhất 1 mẫu **thành công** (trước đây đếm cả mẫu lỗi nên chuỗi quay mãi dù không thu được gì).
+
+GitHub gửi email khi job thất bại — **đừng tắt thông báo này**.
+
+### Kiểm tra key nhanh trên máy
+
+```bash
+set TOMTOM_API_KEY=<key>
+cd ingest/tomtom && python collect.py
+```
+
+Mã thoát: `0` thành công · `1` thiếu key · `2` không thu được bản ghi nào · `3` key bị từ chối · `4` hết hạn mức.

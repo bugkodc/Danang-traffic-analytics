@@ -57,11 +57,17 @@ def goi_api(api_key, lat, lon):
     return r.json().get("flowSegmentData")
 
 
+# Ma thoat - workflow GitHub dua vao day de biet loi gi:
+#   0 thanh cong | 1 thieu key | 2 khong thu duoc ban ghi nao (loi mang...)
+#   3 key bi tu choi (401/403) | 4 het han muc (429)
+MA_THIEU_KEY, MA_RONG, MA_KEY_HONG, MA_HET_HAN_MUC = 1, 2, 3, 4
+
+
 def main():
     api_key = os.environ.get("TOMTOM_API_KEY")
     if not api_key:
         log.error("Chua dat bien moi truong TOMTOM_API_KEY. Dung lai.")
-        sys.exit(1)
+        sys.exit(MA_THIEU_KEY)
 
     os.makedirs(DATA_DIR, exist_ok=True)
     segments = doc_segments(SEGMENTS_FILE)
@@ -94,13 +100,23 @@ def main():
                 "confidence":           d.get("confidence"),
                 "road_closure":         d.get("roadClosure"),
             })
+        except requests.HTTPError as e:
+            ma = e.response.status_code if e.response is not None else None
+            # Loi key va loi han muc giong nhau o moi doan -> dung ngay, khong goi tiep
+            if ma in (401, 403):
+                log.error("TomTom tu choi API key (HTTP %s). Key sai, het han hoac da bi xoa.", ma)
+                sys.exit(MA_KEY_HONG)
+            if ma == 429:
+                log.error("TomTom bao het han muc request (HTTP 429).")
+                sys.exit(MA_HET_HAN_MUC)
+            log.warning("%s: loi HTTP %s - %s", seg["segment_id"], ma, e)
         except Exception as e:
             log.warning("%s: loi - %s", seg["segment_id"], e)
         time.sleep(SLEEP_BETWEEN_CALLS)
 
     if not rows:
         log.error("Khong thu duoc ban ghi nao.")
-        sys.exit(2)
+        sys.exit(MA_RONG)
 
     df_moi = pd.DataFrame(rows)
     out = os.path.join(DATA_DIR, f"{now:%Y-%m-%d}.parquet")

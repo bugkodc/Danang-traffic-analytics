@@ -96,18 +96,34 @@ jobs:
             for k in 1 2 3 4 5; do
               if git pull --rebase --autostash -q origin "$NHANH" && git push -q; then
                 echo "   -> da commit va day len GitHub"
+                DAY_LOI=0
                 return 0
               fi
               echo "   (day that bai lan $k, thu lai sau 10s)"
               sleep 10
             done
-            echo "   !! khong day duoc, giu lai commit cho vong sau"
+            echo "::warning::Khong day duoc du lieu len GitHub sau 5 lan thu, giu lai commit cho vong sau"
+            DAY_LOI=1
             return 0
+          }
+
+          # Truoc day moi loi deu bi nuot -> job van "xanh" du khong thu duoc gi
+          # (du lieu dung tu 18/09/2026 ma 11 ngay khong ai biet). Gio loi nghiem
+          # trong se lam job DO va hien canh bao tren trang Actions.
+          dung_vi_loi() {
+            echo "::error title=Thu thap TomTom that bai::$1"
+            echo "### ❌ $1" >> "$GITHUB_STEP_SUMMARY"
+            day_du_lieu
+            echo "SO_MAU=$THANH_CONG" >> "$GITHUB_ENV"
+            exit 1
           }
 
           BAT_DAU=$(date +%s)
           HAN=$(( BAT_DAU + THOI_LUONG * 60 ))
           i=0
+          THANH_CONG=0
+          LOI_LIEN_TIEP=0
+          DAY_LOI=0
 
           echo "Chay trong $THOI_LUONG phut, lay mau moi $NGHI_PHUT phut,"
           echo "commit sau moi $COMMIT_MOI lan. Du kien ~$(( THOI_LUONG / NGHI_PHUT + 1 )) mau."
@@ -116,7 +132,20 @@ jobs:
           while [ "$(date +%s)" -lt "$HAN" ]; do
             i=$(( i + 1 ))
             echo "--- Mau $i  ($(TZ=Asia/Ho_Chi_Minh date '+%H:%M') gio VN) ---"
-            ( cd ingest/tomtom && python collect.py ) || echo "   (lan nay that bai, di tiep)"
+            MA=0
+            ( cd ingest/tomtom && python collect.py ) || MA=$?
+            case "$MA" in
+              0) THANH_CONG=$(( THANH_CONG + 1 )); LOI_LIEN_TIEP=0 ;;
+              1) dung_vi_loi "Chua co secret TOMTOM_API_KEY." ;;
+              3) dung_vi_loi "TomTom tu choi API key (HTTP 401/403). Tao key moi tai developer.tomtom.com roi cap nhat secret TOMTOM_API_KEY." ;;
+              4) LOI_LIEN_TIEP=$(( LOI_LIEN_TIEP + 1 ))
+                 echo "::warning::TomTom bao het han muc (HTTP 429), lan $LOI_LIEN_TIEP lien tiep" ;;
+              *) LOI_LIEN_TIEP=$(( LOI_LIEN_TIEP + 1 ))
+                 echo "::warning::Lan lay mau $i that bai (ma $MA), lan $LOI_LIEN_TIEP lien tiep" ;;
+            esac
+            if [ "$LOI_LIEN_TIEP" -ge 4 ]; then
+              dung_vi_loi "Lay mau that bai $LOI_LIEN_TIEP lan lien tiep (~1 gio). Xem log buoc nay de biet nguyen nhan."
+            fi
 
             if [ $(( i % COMMIT_MOI )) -eq 0 ]; then
               day_du_lieu
@@ -129,13 +158,19 @@ jobs:
           done
 
           echo ""
-          echo "=== Ket thuc: da lay $i mau. Commit lan cuoi. ==="
+          echo "=== Ket thuc: $THANH_CONG/$i mau thanh cong. Commit lan cuoi. ==="
           day_du_lieu
 
-          # ghi lai de buoc noi chuoi biet job da chay bao lau
+          # ghi lai de buoc noi chuoi biet job da chay bao lau va thu duoc bao nhieu
           PHUT_DA_CHAY=$(( ( $(date +%s) - BAT_DAU ) / 60 ))
           echo "PHUT_DA_CHAY=$PHUT_DA_CHAY" >> "$GITHUB_ENV"
-          echo "SO_MAU=$i" >> "$GITHUB_ENV"
+          echo "SO_MAU=$THANH_CONG" >> "$GITHUB_ENV"
+          echo "### ✅ $THANH_CONG/$i mau thanh cong trong $PHUT_DA_CHAY phut" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$DAY_LOI" -eq 1 ]; then
+            echo "::error title=Khong day duoc du lieu::Du lieu da thu nhung khong day len GitHub duoc. Kiem tra quyen ghi cua workflow (Settings > Actions > Workflow permissions)."
+            exit 1
+          fi
 
       # ---------------------------------------------------------------------
       # TU NOI CHUOI - de chay 24/24 ma khong can bam tay

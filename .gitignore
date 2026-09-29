@@ -90,8 +90,8 @@ desktop.ini
 #   tar -xzf c.tgz && mv package/Build/Cesium services/api/static/vendor/Cesium
 services/api/static/vendor/
 
-# File ban do sinh ra tu do thi, tai tao duoc bang graph/xuat_geojson.py
-serving/*.geojson
+# File ban do phuc vu web demo (nhe ~2MB tong cong, commit de may khac clone ve chay duoc ngay)
+!serving/*.geojson
 
 # Anh camera thu ve - tai lai duoc bang ingest/camera_hcm/thu_anh.py
 data/raw/anh_hcm/

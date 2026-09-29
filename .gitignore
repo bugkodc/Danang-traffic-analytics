@@ -45,6 +45,9 @@ data/interim/
 *.osm.xml
 *.graphml
 data/raw/osm/cache/
+data/raw/ms_buildings/
+cache/
+.claude/
 
 
 # =============================================================

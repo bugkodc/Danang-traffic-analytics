@@ -13,13 +13,19 @@ Sinh ra 2 file trong serving/:
                          ban do chi con may duong ke lo lung, khong ra hinh)
 
 Chay:
-    python graph/xuat_geojson.py
+    python graph/xuat_geojson.py                          # ca thanh pho
+    python graph/xuat_geojson.py --khu-vuc "Phuong Hai Chau, Da Nang, Vietnam"
+
+--khu-vuc: chi xuat trong dung RANH GIOI HANH CHINH (khong phai bbox tho)
+cua khu vuc do, tai truc tiep tu OSM thay vi loc lai file citywide - vung
+nho nen bao gom them ca duong residential/service de co du chi tiet giao lo.
 """
 
 import os
 import sys
 import json
 import math
+import argparse
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -44,6 +50,14 @@ LOAI_LAY = {
     "secondary": 1.3, "secondary_link": 0.8,
     "tertiary": 0.8, "tertiary_link": 0.6,
 }
+
+# Dung khi xuat theo --khu-vuc: vung nho (mot phuong) nen du suc ve them
+# residential/service/unclassified ma khong lam roi mat - nguoc lai day la
+# nhung duong quyet dinh ket cau giao thong o quy mo phuong/hanh lang.
+LOAI_LAY_KHU_VUC = dict(LOAI_LAY, **{
+    "residential": 0.7, "unclassified": 0.7,
+    "living_street": 0.6, "service": 0.4,
+})
 
 # Bo residential (144k doan) va unclassified (15k): chung chiem 83% so doan
 # nhung o muc nhin ca thanh pho thi chi lam ban do bi be. Muon chi tiet hon
@@ -93,14 +107,31 @@ def lam_gon(toa_do):
     return [[round(x, 6), round(y, 6)] for x, y in toa_do]
 
 
-def xuat_duong():
-    if not os.path.exists(NGUON):
-        print(f"Chua co {NGUON}")
-        print("Chay truoc: python graph/tai_do_thi.py --chi danang_cu")
-        sys.exit(1)
+def lay_ranh_gioi(ten):
+    """Tra ve (polygon shapely, bbox) cua mot dia danh hanh chinh tu OSM."""
+    print(f"Tra ranh gioi hanh chinh: {ten!r}")
+    gdf = ox.geocode_to_gdf(ten)
+    polygon = gdf.geometry.iloc[0]
+    w, s, e, n = gdf.total_bounds
+    print(f"  Tim thay: {gdf.iloc[0].get('display_name', ten)}")
+    print(f"  bbox (w,s,e,n) = ({w:.5f}, {s:.5f}, {e:.5f}, {n:.5f})")
+    return polygon, (w, s, e, n)
 
-    print("Doc do thi duong...")
-    G = ox.load_graphml(NGUON)
+
+def xuat_duong(khu_vuc=None):
+    if khu_vuc:
+        polygon, _ = lay_ranh_gioi(khu_vuc)
+        print("Tai truc tiep tu OSM trong ranh gioi (nhanh vi vung nho)...")
+        G = ox.graph_from_polygon(polygon, network_type="drive")
+        loai_lay = LOAI_LAY_KHU_VUC
+    else:
+        if not os.path.exists(NGUON):
+            print(f"Chua co {NGUON}")
+            print("Chay truoc: python graph/tai_do_thi.py --chi danang_cu")
+            sys.exit(1)
+        print("Doc do thi duong...")
+        G = ox.load_graphml(NGUON)
+        loai_lay = LOAI_LAY
     print(f"  {G.number_of_nodes():,} dinh, {G.number_of_edges():,} canh")
 
     features, dem = [], {}
@@ -109,7 +140,7 @@ def xuat_duong():
         if isinstance(hw, (list, tuple)):
             hw = hw[0] if hw else None
         hw = str(hw)
-        if hw not in LOAI_LAY:
+        if hw not in loai_lay:
             continue
 
         geom = d.get("geometry")
@@ -120,7 +151,7 @@ def xuat_duong():
         features.append({
             "type": "Feature",
             "geometry": {"type": "LineString", "coordinates": lam_gon(toa_do)},
-            "properties": {"h": hw, "w": LOAI_LAY[hw]},
+            "properties": {"h": hw, "w": loai_lay[hw]},
         })
         dem[hw] = dem.get(hw, 0) + 1
 
@@ -130,7 +161,7 @@ def xuat_duong():
         print(f"  {k:<18} {dem[k]:>7,}")
 
 
-def xuat_mat_nuoc():
+def xuat_mat_nuoc(khu_vuc=None):
     """Song, bien, ho. Khong co lop nay thi ban do khong ra hinh thanh pho."""
     print("\nTai mat nuoc tu OSM (co the mat 1-3 phut)...")
     features = []
@@ -138,7 +169,10 @@ def xuat_mat_nuoc():
         import geopandas as gpd
         from shapely.geometry import mapping
 
-        w, s, e, n = BBOX
+        if khu_vuc:
+            _, (w, s, e, n) = lay_ranh_gioi(khu_vuc)
+        else:
+            w, s, e, n = BBOX
         gdf = ox.features_from_bbox(
             bbox=(w, s, e, n),
             tags={"natural": ["water", "coastline"],
@@ -189,15 +223,19 @@ def doc_chieu_cao(row):
     return float(CAO_MAC_DINH.get(loai, 8))
 
 
-def xuat_toa_nha():
+def xuat_toa_nha(khu_vuc=None):
     """Toa nha 3D: chan de + chieu cao, de Cesium dun khoi len."""
     print("Tai toa nha tu OSM (vung loi do thi, co the mat 2-5 phut)...")
     features = []
     try:
         from shapely.geometry import mapping
 
-        w, s_, e, n = BBOX_NHA
-        gdf = ox.features_from_bbox(bbox=(w, s_, e, n), tags={"building": True})
+        if khu_vuc:
+            polygon, _ = lay_ranh_gioi(khu_vuc)
+            gdf = ox.features_from_polygon(polygon, tags={"building": True})
+        else:
+            w, s_, e, n = BBOX_NHA
+            gdf = ox.features_from_bbox(bbox=(w, s_, e, n), tags={"building": True})
         print(f"  OSM tra ve {len(gdf):,} toa nha")
 
         # bo nha qua nho: giu cho canh nhin thoang va file nhe
@@ -233,7 +271,13 @@ def ghi(ten, features):
 
 
 if __name__ == "__main__":
-    xuat_duong()
-    xuat_mat_nuoc()
-    xuat_toa_nha()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--khu-vuc", default=None,
+                    help='Ten dia danh OSM, vd "Phuong Hai Chau, Da Nang, Vietnam". '
+                         'Bo trong = xuat toan bo Da Nang cu nhu truoc.')
+    a = ap.parse_args()
+
+    xuat_duong(a.khu_vuc)
+    xuat_mat_nuoc(a.khu_vuc)
+    xuat_toa_nha(a.khu_vuc)
     print("\nXong. Tai lai trang web de xem.")

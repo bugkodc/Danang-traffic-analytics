@@ -11,6 +11,7 @@ Chay:
 """
 
 import os
+import json
 import glob
 from datetime import datetime
 
@@ -24,20 +25,51 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 DATA_GLOB = os.path.join(ROOT, "ingest", "tomtom", "data", "*.parquet")
 STATIC_DIR = os.path.join(HERE, "static")
 
-# Toa do chuan xac 100% dat dung tim cau va truc duong giao thong Da Nang
+# Toa do hien thi cua 12 diem do: diem truy van trong segments.csv duoc keo ve
+# diem gan nhat tren dung con duong mang ten do (do thi OSM, 01/10/2026).
+# Diem truy van goc co diem cach duong toi vai tram met, ve thang len ban do
+# thi roi xuong song hoac vao trong san bay.
 TOA_DO_CHUAN = {
-    "S01": (16.0611, 108.2279),  # Cau Rong - giua cau tren song Han
-    "S02": (16.0721, 108.2268),  # Cau Song Han - giua cau tren song Han
-    "S03": (16.0505, 108.2307),  # Cau Tran Thi Ly - giua cau tren song Han
-    "S04": (16.0632, 108.1798),  # Nga ba Hue - trung tam vong xuyen nut giao 3 tang
-    "S05": (16.0608, 108.2195),  # Nguyen Van Linh - tim dai lo
-    "S06": (16.0662, 108.1880),  # Dien Bien Phu - tim dai lo
-    "S07": (16.0710, 108.2340),  # Ngo Quyen - tim dai lo
-    "S08": (16.0600, 108.2465),  # Vo Nguyen Giap - duong ven bien My Khe
-    "S09": (16.0718, 108.2165),  # Le Duan - pho trung tam
-    "S10": (16.0560, 108.2045),  # Nguyen Tri Phuong - dai lo
-    "S11": (16.0520, 108.1975),  # San bay Da Nang - cua ngo san bay
-    "S12": (16.0710, 108.2390),  # Pham Van Dong - dai lo ra bien
+    "S01": (16.06109, 108.22790),  # Cau Rong (lech 1 m)
+    "S02": (16.07215, 108.22679),  # Cau Song Han (5 m)
+    "S03": (16.05049, 108.23070),  # Cau Tran Thi Ly (1 m)
+    "S04": (16.06304, 108.17994),  # cau vuot Nga ba Hue (23 m)
+    "S05": (16.06086, 108.21950),  # Nguyen Van Linh (6 m)
+    "S06": (16.06588, 108.18803),  # Dien Bien Phu (36 m)
+    "S07": (16.07014, 108.23168),  # Ngo Quyen (266 m)
+    "S08": (16.06000, 108.24654),  # Vo Nguyen Giap (4 m)
+    "S09": (16.07087, 108.21671),  # Le Duan (105 m)
+    "S10": (16.05621, 108.20691),  # Nguyen Tri Phuong (259 m)
+    "S11": (16.05435, 108.20213),  # duong noi bo khu san bay (560 m)
+    "S12": (16.07022, 108.23896),  # Pham Van Dong (87 m)
+}
+
+# Cac diem co van de ve du lieu, phat hien khi doi chieu voi do thi OSM va
+# chuoi toc do (01/10/2026). Can kiem tra lai bang toa do doan ma TomTom tra ve.
+CANH_BAO = {
+    "S05": "Đo trùng đoạn với S10 (tốc độ giống nhau 98% số lần đo), đoạn dài khoảng 12 km.",
+    "S10": "Đo trùng đoạn với S05; điểm truy vấn gần đường Duy Tân hơn Nguyễn Tri Phương.",
+    "S07": "Điểm truy vấn gần đường Phạm Văn Đồng hơn Ngô Quyền, có thể đo nhầm đường.",
+    "S09": "Điểm truy vấn gần đường Ngô Gia Tự hơn Lê Duẩn.",
+    "S11": "Điểm truy vấn nằm trong khu sân bay, cách đường gần nhất khoảng 560 m.",
+    "S08": "Đoạn TomTom dài khoảng 23 km, tốc độ là trung bình cả tuyến ven biển.",
+}
+
+# segments.csv luu ten khong dau (de chay on dinh tren GitHub Actions);
+# ten hien thi tren web lay o day.
+TEN_HIEN_THI = {
+    "S01": "Cầu Rồng",
+    "S02": "Cầu Sông Hàn",
+    "S03": "Cầu Trần Thị Lý",
+    "S04": "Ngã ba Huế",
+    "S05": "Nguyễn Văn Linh",
+    "S06": "Điện Biên Phủ",
+    "S07": "Ngô Quyền",
+    "S08": "Võ Nguyên Giáp",
+    "S09": "Lê Duẩn",
+    "S10": "Nguyễn Tri Phương",
+    "S11": "Sân bay Đà Nẵng",
+    "S12": "Phạm Văn Đồng",
 }
 
 app = FastAPI(title="Da Nang Traffic Analytics", version="0.1.0")
@@ -57,6 +89,7 @@ def doc_du_lieu() -> pd.DataFrame:
 
     df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
     df["ts_local"] = pd.to_datetime(df["ts_local"], utc=True).dt.tz_convert("Asia/Ho_Chi_Minh")
+    df["ten"] = df["segment_id"].map(TEN_HIEN_THI).fillna(df["ten"])
     df = df.sort_values("ts_local")
     _cache.update(mtime=mtime, df=df)
     return df
@@ -121,6 +154,7 @@ def cac_doan(thoi_diem: str | None = None):
             "freeflow_speed": None if pd.isna(r.freeflow_speed) else int(r.freeflow_speed),
             "speed_ratio":    None if pd.isna(ratio) else round(float(ratio), 3),
             "muc_tac":        muc_tac_nghen(ratio),
+            "canh_bao":       CANH_BAO.get(sid),
         })
     return {
         "thoi_diem": lat.ts_local.iloc[0].isoformat(),
@@ -217,7 +251,7 @@ def mat_nuoc():
 
 @app.get("/api/toa-nha")
 def toa_nha():
-    """Chan de + chieu cao toa nha, de Cesium dun khoi 3D."""
+    """Chan de + chieu cao toa nha (thuoc tinh c, met) de ban do dun khoi 3D."""
     f = os.path.join(ROOT, "serving", "toa_nha.geojson")
     if not os.path.exists(f):
         raise HTTPException(404, "Chua co toa_nha.geojson. "
@@ -225,114 +259,51 @@ def toa_nha():
     return FileResponse(f, media_type="application/geo+json")
 
 
+# --- phan luong: chi doc ket qua da tinh boi graph/chay_phan_luong.py ---
+
+FILE_PHAN_LUONG = os.path.join(ROOT, "serving", "phan_luong.json")
+_cache_pl = {"mtime": None, "data": None}
+
+
+def doc_phan_luong() -> dict:
+    if not os.path.exists(FILE_PHAN_LUONG):
+        raise HTTPException(404, "Chua co ket qua phan luong. Chay: python graph/chay_phan_luong.py")
+    mtime = os.path.getmtime(FILE_PHAN_LUONG)
+    if _cache_pl["mtime"] != mtime:
+        with open(FILE_PHAN_LUONG, encoding="utf-8") as f:
+            _cache_pl.update(mtime=mtime, data=json.load(f))
+    return _cache_pl["data"]
+
+
 @app.get("/api/phan-luong")
-def phan_luong(diem_di: str = "S11", diem_den: str = "S08", thoi_diem: str | None = None):
+def phan_luong_tong_hop():
+    """Hien trang, cac kich ban, diem trong yeu - khong kem duong di (lay rieng)."""
+    d = doc_phan_luong()
+    return {k: v for k, v in d.items() if k != "duong_di"}
+
+
+@app.get("/api/phan-luong/duong-di")
+def phan_luong_duong_di(tu: str, den: str, kich_ban: str = "hien-trang"):
     """
-    Tinh toan so sanh lo trinh tinh (OSM mac dinh) va lo trinh dong (Spark Rerouting)
-    dua tren van toc do thuc te tai thoi diem do.
+    Duong di giua hai vung trong mot kich ban: duong theo ban do thong thuong
+    (khong biet tac nghen, cau dong) va duong theo ket qua phan luong.
     """
-    df = doc_du_lieu()
-    if df.empty:
-        raise HTTPException(404, "Chua co du lieu")
-    
-    if thoi_diem:
-        muc_tieu = pd.Timestamp(thoi_diem)
-        lat = df[df.ts_local == muc_tieu]
-        if lat.empty:
-            idx = (df.ts_local - muc_tieu).abs().idxmin()
-            lat = df[df.ts_local == df.loc[idx, "ts_local"]]
-    else:
-        lat = df[df.ts_local == df.ts_local.max()]
-    
-    speed_map = dict(zip(lat["segment_id"], lat["current_speed"]))
-    free_map = dict(zip(lat["segment_id"], lat["freeflow_speed"]))
+    dd = doc_phan_luong()["duong_di"]
+    khoa = f"{tu}-{den}"
+    d = dd["kich_ban"].get(kich_ban, {}).get(khoa)
+    if d is None:
+        raise HTTPException(404, f"Khong co duong di {tu} -> {den} cho kich ban {kich_ban}")
+    ban_do = {**d["ban_do"], "toa_do": dd["hinh_ban_do"][khoa]}
+    return {**d, "ban_do": ban_do}
 
-    # 3 tuyen duong qua 3 cay cau huyet mach cua Hai Chau
-    # Tuyen 1: San bay -> Nguyen Van Linh -> Cau Rong -> Vo Van Kiet / My Khe
-    s_nvl = speed_map.get("S05") or 25
-    s_rong = speed_map.get("S01") or 20
-    t_nvl_min = (3.2 / max(s_nvl, 5)) * 60
-    t_rong_min = (1.8 / max(s_rong, 5)) * 60
-    thoi_gian_rong = round(t_nvl_min + t_rong_min, 1)
 
-    # Tuyen 2: San bay -> Dien Bien Phu / Le Duan -> Cau Song Han -> Bờ Đông
-    s_leduan = speed_map.get("S09") or 30
-    s_songhan = speed_map.get("S02") or 28
-    t_leduan_min = (3.8 / max(s_leduan, 5)) * 60
-    t_songhan_min = (1.9 / max(s_songhan, 5)) * 60
-    thoi_gian_songhan = round(t_leduan_min + t_songhan_min, 1)
-
-    # Tuyen 3: San bay -> Nguyen Tri Phuong -> Cau Tran Thi Ly -> Vo Nguyen Giap
-    s_ntp = speed_map.get("S10") or 35
-    s_ly = speed_map.get("S03") or 35
-    t_ntp_min = (3.5 / max(s_ntp, 5)) * 60
-    t_ly_min = (2.4 / max(s_ly, 5)) * 60
-    thoi_gian_ly = round(t_ntp_min + t_ly_min, 1)
-
-    # Lo trinh mac dinh theo do thi OSM tinh (khoang cach ngan nhat la qua Cau Rong)
-    lo_trinh_tinh = {
-        "ten": "Lộ trình tĩnh mặc định (OSM)",
-        "qua_cau": "Cầu Rồng (Nguyễn Văn Linh)",
-        "do_dai_km": 5.0,
-        "thoi_gian_phut": thoi_gian_rong,
-        "toc_do_tb_kmh": round(5.0 / (thoi_gian_rong / 60), 1),
-        "muc_do_nghen": "Ùn tắc" if thoi_gian_rong > 20 else ("Hơi đông" if thoi_gian_rong > 12 else "Thông thoáng"),
-        "toa_do": [
-            [16.0520, 108.1975], # San bay
-            [16.0608, 108.2195], # Nguyen Van Linh
-            [16.0611, 108.2279], # Cau Rong
-            [16.0615, 108.2380], # Vo Van Kiet
-            [16.0600, 108.2465]  # My Khe
-        ]
-    }
-
-    # Lo trinh toi uu dong qua thuat toan Spark Rerouting
-    ds_lo_trinh = [
-        ("Cầu Rồng", thoi_gian_rong, 5.0, lo_trinh_tinh["toa_do"]),
-        ("Cầu Sông Hàn", thoi_gian_songhan, 5.7, [
-            [16.0520, 108.1975], # San bay
-            [16.0662, 108.1880], # Dien Bien Phu
-            [16.0718, 108.2165], # Le Duan
-            [16.0721, 108.2268], # Cau Song Han
-            [16.0710, 108.2390], # Pham Van Dong
-            [16.0600, 108.2465]  # My Khe
-        ]),
-        ("Cầu Trần Thị Lý", thoi_gian_ly, 5.9, [
-            [16.0520, 108.1975], # San bay
-            [16.0560, 108.2045], # Nguyen Tri Phuong
-            [16.0505, 108.2307], # Cau Tran Thi Ly
-            [16.0550, 108.2420], # Nguyen Van Thoai
-            [16.0600, 108.2465]  # My Khe
-        ])
-    ]
-
-    # Tim tuyen co thoi gian it nhat
-    ds_lo_trinh.sort(key=lambda x: x[1])
-    best = ds_lo_trinh[0]
-    tiet_kiem = max(0.0, round(thoi_gian_rong - best[1], 1))
-    phan_tram = round((tiet_kiem / thoi_gian_rong) * 100, 1) if thoi_gian_rong > 0 else 0
-
-    lo_trinh_dong = {
-        "ten": f"Lộ trình phân luồng tối ưu (Spark BPR)",
-        "qua_cau": best[0],
-        "do_dai_km": best[2],
-        "thoi_gian_phut": best[1],
-        "toc_do_tb_kmh": round(best[2] / (best[1] / 60), 1),
-        "tiet_kiem_phut": tiet_kiem,
-        "phan_tram_giam_tre": phan_tram,
-        "toa_do": best[3]
-    }
-
-    return {
-        "thoi_diem": lat.ts_local.iloc[0].isoformat(),
-        "tinh": lo_trinh_tinh,
-        "dong": lo_trinh_dong,
-        "tat_ca_tuyen": [
-            {"ten": "Qua Cầu Rồng", "thoi_gian": thoi_gian_rong, "km": 5.0, "toc_do": round(5.0/(thoi_gian_rong/60), 1)},
-            {"ten": "Qua Cầu Sông Hàn", "thoi_gian": thoi_gian_songhan, "km": 5.7, "toc_do": round(5.7/(thoi_gian_songhan/60), 1)},
-            {"ten": "Qua Cầu Trần Thị Lý", "thoi_gian": thoi_gian_ly, "km": 5.9, "toc_do": round(5.9/(thoi_gian_ly/60), 1)},
-        ]
-    }
+@app.get("/api/phan-luong/canh")
+def phan_luong_canh():
+    """Luu luong, V/C va chenh lech theo kich ban tren tung canh (GeoJSON)."""
+    f = os.path.join(ROOT, "serving", "phan_luong_canh.geojson")
+    if not os.path.exists(f):
+        raise HTTPException(404, "Chua co ket qua phan luong. Chay: python graph/chay_phan_luong.py")
+    return FileResponse(f, media_type="application/geo+json", headers={"Cache-Control": "no-cache"})
 
 
 # --- phuc vu trang web tinh ---

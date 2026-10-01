@@ -2,1084 +2,117 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hệ thống Phân tích & Phân luồng Giao thông Đô thị Đà Nẵng (3D - 2.5D)</title>
-  
-  <!-- Phông chữ Inter chuẩn thiết kế & Tailwind CSS -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Giao thông Đà Nẵng</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
-  
-  <!-- MapLibre GL JS: Thư viện WebGL 3D chuyên nghiệp (Góc nhìn 2.5D & Đùn khối Tòa nhà 3D) -->
-  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-
-  <style>
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-    .font-mono-code {
-      font-family: 'JetBrains Mono', monospace;
-    }
-    
-    /* Tùy biến thanh cuộn mỏng tinh tế */
-    ::-webkit-scrollbar { width: 4px; height: 4px; }
-    ::-webkit-scrollbar-track { background: #0f172a; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
-    ::-webkit-scrollbar-thumb:hover { background: #475569; }
-
-    #map {
-      width: 100%;
-      height: 100%;
-      background: #090e17;
-    }
-
-    /* Marker trạm đo 3D tròn chuẩn mực GIS */
-    .station-marker {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      border: 2px solid #ffffff;
-      color: #ffffff;
-      font-weight: 700;
-      font-size: 11px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.6);
-      cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
-    .station-marker:hover {
-      transform: scale(1.2);
-      box-shadow: 0 0 20px rgba(255,255,255,0.9);
-      z-index: 1000 !important;
-    }
-    .marker-level-1 { background: #10b981; } /* Thông thoáng */
-    .marker-level-2 { background: #eab308; } /* Hơi đông */
-    .marker-level-3 { background: #f97316; } /* Đông */
-    .marker-level-4 { background: #ef4444; } /* Ùn tắc */
-
-    /* Custom MapLibre Popup */
-    .maplibregl-popup-content {
-      background: #1e293b !important;
-      color: #f8fafc !important;
-      border: 1px solid #475569 !important;
-      border-radius: 8px !important;
-      padding: 10px 12px !important;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
-    }
-    .maplibregl-popup-tip {
-      border-top-color: #1e293b !important;
-    }
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <link href="/static/css/app.css" rel="stylesheet">
 </head>
+<body>
+  <div class="app">
 
-<body class="bg-slate-950 text-slate-100 h-screen flex flex-col overflow-hidden select-none">
-
-  <!-- ==================== 1. HEADER CHUYÊN NGHIỆP ==================== -->
-  <header class="h-14 bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between z-30 flex-shrink-0 shadow-sm">
-    <!-- Logo & Tên đề tài -->
-    <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded-lg bg-sky-600 flex items-center justify-center text-white font-bold shadow-md shadow-sky-900/30">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+    <header class="thanh-dau">
+      <h1>Giao thông Đà Nẵng</h1>
+      <span class="phu-de">Hệ thống hỗ trợ quản lý và điều phối · bản thử nghiệm</span>
+      <div class="phai">
+        <span id="nhan-cu" class="nhan-cu an">Dữ liệu chưa cập nhật</span>
+        <span>Đo lúc <b id="lan-do" class="so">--</b></span>
       </div>
-      <div>
-        <div class="flex items-center gap-2">
-          <h1 class="text-sm font-semibold text-white tracking-tight">Hệ thống Phân tích & Phân luồng Giao thông Đà Nẵng</h1>
-          <span class="text-[10px] font-medium px-2 py-0.5 rounded bg-sky-950 text-sky-400 border border-sky-800/60 font-mono-code">2.5D Digital Twin</span>
-        </div>
-        <p class="text-[11px] text-slate-400">Không gian 3D Tòa nhà & Mạng lưới OpenStreetMap · Điển cứu Quận Hải Châu</p>
-      </div>
-    </div>
+    </header>
 
-    <!-- Chỉ số tóm tắt nhanh (Quick KPI Pills) -->
-    <div class="hidden lg:flex items-center gap-3 font-mono-code text-xs">
-      <div class="bg-slate-950/70 border border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
-        <span class="text-slate-400 text-[11px]">Vận tốc TB:</span>
-        <span id="headerAvgSpeed" class="text-emerald-400 font-semibold">24.5 km/h</span>
-      </div>
-      <div class="bg-slate-950/70 border border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
-        <span class="text-slate-400 text-[11px]">Điểm ùn tắc:</span>
-        <span id="headerCongestedCount" class="text-amber-400 font-semibold">2 / 12 điểm</span>
-      </div>
-      <div class="bg-slate-950/70 border border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
-        <span class="text-slate-400 text-[11px]">Tòa nhà 3D:</span>
-        <span class="text-sky-400 font-semibold flex items-center gap-1.5">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Đã đùn khối
-        </span>
-      </div>
-    </div>
+    <aside class="cot-ben">
+      <nav class="tab">
+        <button data-tab="hien-trang" class="dang-chon">Hiện trạng</button>
+        <button data-tab="theo-gio">Theo giờ</button>
+        <button data-tab="phan-luong">Phân luồng</button>
+      </nav>
 
-    <!-- Đồng hồ & Thao tác điều khiển nhanh -->
-    <div class="flex items-center gap-2">
-      <div class="text-right hidden sm:block mr-2 font-mono-code">
-        <div class="text-[10px] text-slate-500 uppercase">Cập nhật lúc</div>
-        <div id="headerTime" class="text-xs font-medium text-slate-300">--:--:--</div>
-      </div>
-      <button onclick="tailaiDuLieu()" title="Làm mới dữ liệu từ máy chủ" 
-              class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-medium flex items-center gap-1.5 transition">
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-        <span>Làm mới</span>
-      </button>
-    </div>
-  </header>
-
-  <!-- ==================== 2. KHUNG NỘI DUNG CHÍNH ==================== -->
-  <div class="flex-1 flex overflow-hidden relative">
-
-    <!-- SIDEBAR ĐIỀU KHIỂN BÊN TRÁI (340px) -->
-    <aside id="sidebar" class="w-80 bg-slate-900/95 border-r border-slate-800 flex flex-col z-20 shadow-xl flex-shrink-0 transition-all duration-300 relative">
-      
-      <!-- Nút thu gọn / mở rộng Sidebar -->
-      <button onclick="toggleSidebar()" id="btnToggleSidebar" title="Thu gọn/Mở rộng bảng điều khiển"
-              class="absolute -right-3 top-5 w-6 h-6 rounded-full bg-slate-800 border border-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-xs shadow-md z-30 transition">
-        ‹
-      </button>
-
-      <!-- Tabs chọn phân hệ -->
-      <div class="flex border-b border-slate-800 bg-slate-900/80 p-1 gap-1 flex-shrink-0">
-        <button onclick="chuyenTab('monitor')" id="tabBtnMonitor" 
-                class="flex-1 py-1.5 text-xs font-medium rounded-md transition text-sky-400 bg-slate-800 shadow-sm flex items-center justify-center gap-1.5">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-          <span>Giám sát</span>
-        </button>
-        <button onclick="chuyenTab('reroute')" id="tabBtnReroute" 
-                class="flex-1 py-1.5 text-xs font-medium rounded-md transition text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-          <span>Phân luồng</span>
-        </button>
-        <button onclick="chuyenTab('camera')" id="tabBtnCamera" 
-                class="flex-1 py-1.5 text-xs font-medium rounded-md transition text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-          <span>Camera AI</span>
-        </button>
-      </div>
-
-      <!-- NỘI DUNG TAB 1: GIÁM SÁT MẠNG LƯỚI -->
-      <div id="tabContentMonitor" class="flex-1 overflow-y-auto p-3 space-y-3.5">
-        
-        <!-- Bộ lọc trạng thái ùn tắc -->
-        <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2.5 space-y-2">
-          <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex justify-between">
-            <span>Mức độ lưu thông</span>
-            <span class="text-slate-500 font-mono-code" id="filterCountLabel">12 đoạn</span>
-          </div>
-          <div class="grid grid-cols-2 gap-1.5 text-xs">
-            <button onclick="locTheoMuc(1)" class="p-1.5 rounded border border-emerald-500/30 bg-emerald-950/20 text-emerald-400 hover:bg-emerald-950/40 flex items-center gap-2 transition">
-              <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Thông thoáng (&gt;85%)
-            </button>
-            <button onclick="locTheoMuc(2)" class="p-1.5 rounded border border-amber-500/30 bg-amber-950/20 text-amber-400 hover:bg-amber-950/40 flex items-center gap-2 transition">
-              <span class="w-2 h-2 rounded-full bg-amber-500"></span> Hơi đông (65-85%)
-            </button>
-            <button onclick="locTheoMuc(3)" class="p-1.5 rounded border border-orange-500/30 bg-orange-950/20 text-orange-400 hover:bg-orange-950/40 flex items-center gap-2 transition">
-              <span class="w-2 h-2 rounded-full bg-orange-500"></span> Đông (45-65%)
-            </button>
-            <button onclick="locTheoMuc(4)" class="p-1.5 rounded border border-red-500/30 bg-red-950/20 text-red-400 hover:bg-red-950/40 flex items-center gap-2 transition">
-              <span class="w-2 h-2 rounded-full bg-red-500"></span> Ùn tắc (&lt;45%)
-            </button>
-          </div>
+      <!-- Tab 1: trang thai cac diem do tai mot thoi diem -->
+      <section id="tab-hien-trang" class="noi-dung-tab">
+        <h2>Tổng quan</h2>
+        <div class="chi-so">
+          <div class="o-chi-so"><div class="gia-tri so" id="cs-so-diem">--</div><div class="ten">điểm đo</div></div>
+          <div class="o-chi-so"><div class="gia-tri so" id="cs-toc-do">--</div><div class="ten">tốc độ trung bình (km/h)</div></div>
+          <div class="o-chi-so"><div class="gia-tri so" id="cs-dong">--</div><div class="ten">điểm đông hoặc tắc</div></div>
+          <div class="o-chi-so"><div class="gia-tri so" id="cs-ty-le">--</div><div class="ten">tốc độ / tốc độ tự do</div></div>
         </div>
 
-        <!-- Danh sách các đoạn đo TomTom thực tế -->
-        <div class="space-y-1.5">
-          <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex justify-between">
-            <span>Danh sách điểm quan trắc</span>
-            <span class="text-slate-500 font-mono-code">Tốc độ / Tự do</span>
-          </div>
-          <div id="segmentListContainer" class="space-y-1 max-h-[260px] overflow-y-auto pr-0.5">
-            <div class="text-xs text-slate-500 p-4 text-center">Đang tải dữ liệu mạng lưới...</div>
-          </div>
+        <h2>Điểm đo</h2>
+        <div class="chu-giai">
+          <span style="--mau: var(--muc-1)">Thông thoáng</span>
+          <span style="--mau: var(--muc-2)">Hơi đông</span>
+          <span style="--mau: var(--muc-3)">Đông</span>
+          <span style="--mau: var(--muc-4)">Tắc</span>
         </div>
+        <ul id="ds-diem" class="ds-diem"></ul>
 
-        <!-- Tùy chọn lớp không gian 3D -->
-        <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2.5 space-y-2 text-xs">
-          <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Lớp không gian 3D & Bản đồ</div>
-          <div class="space-y-1.5">
-            <label class="flex items-center justify-between cursor-pointer hover:text-white text-slate-300">
-              <span class="flex items-center gap-2"><input type="checkbox" id="chk3dBuildings" checked onchange="toggle3dBuildings()" class="rounded accent-sky-500"/> Tòa nhà 3D (Đùn khối)</span>
-              <span class="text-[10px] text-sky-400 font-mono-code">1.3 MB</span>
-            </label>
-            <label class="flex items-center justify-between cursor-pointer hover:text-white text-slate-300">
-              <span class="flex items-center gap-2"><input type="checkbox" id="chkOsmRoads" checked onchange="toggleOsmRoads()" class="rounded accent-sky-500"/> Mạng lưới đường OSM</span>
-              <span class="text-[10px] text-slate-500 font-mono-code">GeoJSON</span>
-            </label>
-            <label class="flex items-center justify-between cursor-pointer hover:text-white text-slate-300">
-              <span class="flex items-center gap-2"><input type="checkbox" id="chkWaterLayer" checked onchange="toggleWaterLayer()" class="rounded accent-sky-500"/> Mặt nước Sông Hàn</span>
-              <span class="text-[10px] text-slate-500 font-mono-code">GeoJSON</span>
-            </label>
+        <div id="chi-tiet" class="chi-tiet an">
+          <div class="dong-dau">
+            <h3 id="ct-ten"></h3>
+            <button class="nut-dong" id="ct-dong" title="Đóng">×</button>
           </div>
+          <p class="ghi-chu" id="ct-mo-ta"></p>
+          <p class="canh-bao an" id="ct-canh-bao"></p>
+          <div class="bieu-do" id="ct-bieu-do"></div>
+          <p class="ghi-chu">Đường liền: tốc độ đo được. Đường đứt: tốc độ khi đường thông thoáng.</p>
         </div>
+      </section>
 
-      </div>
+      <!-- Tab 2: ho so toc do theo gio - dang du lieu se thanh trong so dong -->
+      <section id="tab-theo-gio" class="noi-dung-tab an">
+        <h2>Tỷ lệ tốc độ trung bình theo giờ</h2>
+        <div id="nhiet" class="nhiet"></div>
+        <div class="thang-mau"><span>Tắc</span><div class="dai"></div><span>Thông thoáng</span></div>
+        <p class="ghi-chu">
+          Mỗi ô là tỷ lệ giữa tốc độ đo được và tốc độ khi đường thông thoáng, lấy trung bình theo giờ
+          trên toàn bộ dữ liệu đã thu. Đây là dạng dữ liệu sẽ dùng làm trọng số theo giờ cho đồ thị.
+        </p>
+      </section>
 
-      <!-- NỘI DUNG TAB 2: PHÂN LUỒNG ĐỘNG (SPARK REROUTING) -->
-      <div id="tabContentReroute" class="hidden flex-1 overflow-y-auto p-3 space-y-3.5 text-xs">
-        <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-3 space-y-2.5">
-          <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-            <span>Thiết lập Cặp điểm Đi - Đến (OD)</span>
-            <span class="text-sky-400 font-mono-code">Hải Châu</span>
-          </div>
+      <!-- Tab 3: ket qua gan luong can bang (graph/chay_phan_luong.py) -->
+      <section id="tab-phan-luong" class="noi-dung-tab an">
+        <p class="canh-bao" id="pl-gia-dinh"></p>
 
-          <div class="space-y-2">
-            <div>
-              <label class="text-[10px] text-slate-400">Điểm xuất phát (Origin):</label>
-              <select id="selectOrigin" class="w-full mt-0.5 bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200 text-xs focus:outline-none focus:border-sky-500">
-                <option value="S11" selected>S11: Sân bay Đà Nẵng (Cửa ngõ phía Tây)</option>
-                <option value="S04">S04: Ngã ba Huế (Trục Tây Bắc)</option>
-                <option value="S06">S06: Đường Điện Biên Phủ</option>
-              </select>
-            </div>
-
-            <div>
-              <label class="text-[10px] text-slate-400">Điểm đến (Destination):</label>
-              <select id="selectDestination" class="w-full mt-0.5 bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200 text-xs focus:outline-none focus:border-sky-500">
-                <option value="S08" selected>S08: Bãi biển Mỹ Khê (Bờ Đông Sơn Trà)</option>
-                <option value="S07">S07: Trục Ngô Quyền</option>
-                <option value="S12">S12: Đại lộ Phạm Văn Đồng</option>
-              </select>
-            </div>
-          </div>
-
-          <button onclick="tinhToanPhanLuong()" id="btnActionReroute" 
-                  class="w-full py-2 px-3 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs shadow-md shadow-sky-900/30 transition flex items-center justify-center gap-2">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            <span>Tính toán Phân luồng Tối ưu</span>
-          </button>
+        <h2>Tìm đường</h2>
+        <div class="chon-od">
+          <label>Từ <select id="pl-tu"></select></label>
+          <label>Đến <select id="pl-den"></select></label>
         </div>
+        <div id="pl-duong"></div>
 
-        <!-- Bảng so sánh 2 kịch bản -->
-        <div id="rerouteComparisonCard" class="space-y-2">
-          <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">So sánh Hiệu quả Phân luồng</div>
-          
-          <!-- Lộ trình tĩnh mặc định -->
-          <div class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 space-y-1">
-            <div class="flex items-center justify-between">
-              <span class="font-medium text-slate-300">1. Lộ trình tĩnh OSM</span>
-              <span class="text-[10px] px-1.5 py-0.5 rounded bg-red-950 text-red-400 border border-red-800/60 font-mono-code font-bold" id="resStaticStatus">Ùn tắc</span>
-            </div>
-            <div class="text-[11px] text-slate-400">Qua trục Cầu Rồng (Nguyễn Văn Linh)</div>
-            <div class="flex items-baseline justify-between pt-1 font-mono-code">
-              <span class="text-slate-400 text-[11px]">Thời gian dự kiến:</span>
-              <span id="resStaticTime" class="text-base font-bold text-red-400">28.5 phút</span>
-            </div>
-            <div class="flex justify-between text-[10px] text-slate-500 font-mono-code">
-              <span>Khoảng cách: 5.0 km</span>
-              <span id="resStaticSpeed">Tốc độ: 10.5 km/h</span>
-            </div>
-          </div>
+        <h2>Kịch bản điều phối</h2>
+        <div id="pl-kich-ban" class="ds-kich-ban"></div>
+        <div class="chu-giai" id="pl-chu-giai"></div>
 
-          <!-- Lộ trình phân luồng động -->
-          <div class="p-2.5 rounded-lg bg-slate-950 border border-emerald-500/40 space-y-1 shadow-md shadow-emerald-950/20">
-            <div class="flex items-center justify-between">
-              <span class="font-medium text-emerald-400">2. Lộ trình Phân luồng Spark</span>
-              <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800/60 font-mono-code font-bold">Tối ưu</span>
-            </div>
-            <div class="text-[11px] text-slate-400" id="resDynamicRouteName">Điều hướng qua Cầu Sông Hàn</div>
-            <div class="flex items-baseline justify-between pt-1 font-mono-code">
-              <span class="text-slate-400 text-[11px]">Thời gian dự kiến:</span>
-              <span id="resDynamicTime" class="text-base font-bold text-emerald-400">14.2 phút</span>
-            </div>
-            <div class="flex justify-between text-[10px] text-slate-500 font-mono-code">
-              <span id="resDynamicKm">Khoảng cách: 5.7 km</span>
-              <span id="resDynamicSpeed">Tốc độ: 24.1 km/h</span>
-            </div>
-          </div>
-
-          <!-- Mức độ cải thiện -->
-          <div id="savingHighlightBox" class="p-2.5 rounded-lg bg-emerald-950/30 border border-emerald-600/40 text-center space-y-0.5">
-            <div class="text-[11px] text-emerald-300 font-medium">Mức cải thiện thời gian hành trình:</div>
-            <div class="text-lg font-bold text-white font-mono-code" id="resSavingMinutes">Tiết kiệm 14.3 phút (50.1%)</div>
-            <div class="text-[10px] text-slate-400">Đã kiểm chứng độc lập bằng chuỗi dữ liệu TomTom</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- NỘI DUNG TAB 3: THỊ GIÁC MÁY TÍNH -->
-      <div id="tabContentCamera" class="hidden flex-1 overflow-y-auto p-3 space-y-3.5 text-xs">
-        <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-3 space-y-2.5">
-          <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex justify-between">
-            <span>Camera Giám sát Nút giao</span>
-            <span class="text-sky-400 font-mono-code">HC-01 (Cầu Rồng)</span>
-          </div>
-
-          <!-- Video Canvas -->
-          <div class="relative w-full aspect-video bg-black rounded-lg border border-slate-800 overflow-hidden">
-            <canvas id="cameraCanvas" width="320" height="180" class="w-full h-full object-cover"></canvas>
-            <div class="absolute top-1.5 left-1.5 bg-slate-950/80 px-2 py-0.5 rounded text-[10px] font-mono-code text-emerald-400 border border-slate-800">
-              YOLOv11s + ByteTrack · 30 FPS
-            </div>
-            <div class="absolute bottom-1.5 right-1.5 bg-slate-950/80 px-2 py-0.5 rounded text-[10px] font-mono-code text-slate-300 border border-slate-800">
-              Vạch ảo: <span class="text-emerald-400">Active</span>
-            </div>
-          </div>
-
-          <!-- Bảng phân loại lưu lượng xe -->
-          <div class="grid grid-cols-3 gap-1.5 text-center font-mono-code text-xs">
-            <div class="bg-slate-900 p-2 rounded border border-slate-800">
-              <div class="text-[10px] text-slate-400">Xe máy (0.5)</div>
-              <div class="text-sm font-bold text-sky-400">3,640</div>
-              <div class="text-[9px] text-slate-500">xe / giờ</div>
-            </div>
-            <div class="bg-slate-900 p-2 rounded border border-slate-800">
-              <div class="text-[10px] text-slate-400">Ô tô (1.0)</div>
-              <div class="text-sm font-bold text-amber-400">580</div>
-              <div class="text-[9px] text-slate-500">xe / giờ</div>
-            </div>
-            <div class="bg-slate-900 p-2 rounded border border-slate-800">
-              <div class="text-[10px] text-slate-400">Tải PCU</div>
-              <div class="text-sm font-bold text-red-400">2,400</div>
-              <div class="text-[9px] text-slate-500">PCU / giờ</div>
-            </div>
-          </div>
-
-          <div class="space-y-1.5 pt-1 text-[11px] text-slate-300">
-            <div class="flex justify-between">
-              <span>Hệ số tải bão hòa (V/C):</span>
-              <strong class="text-red-400 font-mono-code">1.41 (Quá tải)</strong>
-            </div>
-            <div class="flex justify-between">
-              <span>Tỷ lệ xe máy trong dòng:</span>
-              <strong class="text-sky-300 font-mono-code">86.2%</strong>
-            </div>
-            <div class="flex justify-between">
-              <span>Sai số GEH so với đếm tay:</span>
-              <strong class="text-emerald-400 font-mono-code">3.2 (&lt; 5 Chuẩn đạt)</strong>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Footer Sidebar -->
-      <div class="p-3 bg-slate-950 border-t border-slate-800 text-[11px] text-slate-500 flex items-center justify-between flex-shrink-0">
-        <span>ĐH Sư phạm · ĐH Đà Nẵng</span>
-        <span class="font-mono-code">v2.5D WebGL</span>
-      </div>
+        <h2>Điểm trọng yếu</h2>
+        <ol id="pl-trong-yeu" class="ds-trong-yeu"></ol>
+        <p class="ghi-chu" id="pl-thong-tin"></p>
+      </section>
     </aside>
 
-    <!-- ==================== KHU VỰC BẢN ĐỒ 2.5D (MAPLIBRE GL JS) ==================== -->
-    <main class="flex-1 h-full relative overflow-hidden bg-slate-950">
-      
-      <!-- MapLibre Canvas Container -->
+    <main class="ban-do">
       <div id="map"></div>
-
-      <!-- Floating Controls: Điều khiển góc nhìn 2.5D & Zoom -->
-      <div class="absolute right-4 top-4 flex flex-col gap-2 z-20">
-        <button onclick="mapPitchUp()" title="Tăng góc nghiêng 2.5D" 
-                class="w-8 h-8 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-sky-400 flex items-center justify-center text-xs font-bold shadow-lg transition">
-          3D
-        </button>
-        <button onclick="mapPitchFlat()" title="Góc nhìn phẳng 2D" 
-                class="w-8 h-8 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 flex items-center justify-center text-xs font-bold shadow-lg transition">
-          2D
-        </button>
-        <button onclick="mapZoomIn()" title="Phóng to" 
-                class="w-8 h-8 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-white flex items-center justify-center text-sm font-bold shadow-lg transition">
-          ＋
-        </button>
-        <button onclick="mapZoomOut()" title="Thu nhỏ" 
-                class="w-8 h-8 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-white flex items-center justify-center text-sm font-bold shadow-lg transition">
-          －
-        </button>
-        <button onclick="resetHaiChauView()" title="Về trung tâm Hải Châu" 
-                class="w-8 h-8 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-emerald-400 flex items-center justify-center text-sm shadow-lg transition">
-          📍
-        </button>
-        <button id="btnBasemapToggle" onclick="chuyenNenBanDo()" title="Đổi nền: Tối / Vệ tinh" 
-                class="w-8 h-8 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-amber-400 flex items-center justify-center text-sm shadow-lg transition">
-          🛰️
-        </button>
+      <div class="lop-ban-do">
+        <label><input type="checkbox" id="lop-toa-nha" checked> Tòa nhà 3D</label>
+        <label><input type="checkbox" id="lop-duong" checked> Mạng lưới đường</label>
+        <label><input type="checkbox" id="lop-ve-tinh"> Ảnh vệ tinh</label>
       </div>
-
-      <!-- Hướng dẫn điều khiển góc nhìn 3D -->
-      <div class="absolute bottom-16 right-4 z-20 bg-slate-900/80 backdrop-blur border border-slate-800 px-3 py-1.5 rounded-lg text-[10px] text-slate-400 hidden sm:block">
-        💡 <strong>Mẹo 3D:</strong> Giữ chuột phải hoặc <code>Ctrl + Kéo chuột</code> để xoay & nghiêng 360° tự do
-      </div>
-
-      <!-- Panel chi tiết điểm đo trượt từ dưới lên -->
-      <div id="detailPopupPanel" class="hidden absolute bottom-16 left-4 right-4 max-w-xl mx-auto bg-slate-900/95 border border-slate-700/80 rounded-xl p-3.5 shadow-2xl z-20 backdrop-blur space-y-2">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-1.5">
-          <div class="flex items-center gap-2">
-            <span class="w-3 h-3 rounded-full" id="detailColorDot"></span>
-            <h3 class="text-xs font-bold text-white uppercase" id="detailSegName">Tên đoạn đường</h3>
-            <span class="text-[10px] font-mono-code px-1.5 py-0.5 rounded bg-slate-800 text-slate-300" id="detailSegId">S01</span>
-          </div>
-          <button onclick="dongDetailPanel()" class="text-slate-400 hover:text-white text-base font-bold leading-none px-1">✕</button>
-        </div>
-
-        <div class="grid grid-cols-3 gap-2 text-xs font-mono-code">
-          <div class="bg-slate-950 p-2 rounded border border-slate-800">
-            <div class="text-[10px] text-slate-500 font-sans">Tốc độ hiện tại</div>
-            <div class="text-sm font-bold text-white mt-0.5" id="detailCurSpeed">-- km/h</div>
-          </div>
-          <div class="bg-slate-950 p-2 rounded border border-slate-800">
-            <div class="text-[10px] text-slate-500 font-sans">Tốc độ tự do</div>
-            <div class="text-sm font-bold text-slate-300 mt-0.5" id="detailFreeSpeed">-- km/h</div>
-          </div>
-          <div class="bg-slate-950 p-2 rounded border border-slate-800">
-            <div class="text-[10px] text-slate-500 font-sans">Tỷ lệ lưu thông</div>
-            <div class="text-sm font-bold mt-0.5" id="detailRatio">--</div>
-          </div>
-        </div>
-
-        <!-- Mini Canvas biểu đồ tốc độ lịch sử -->
-        <div class="space-y-1">
-          <div class="flex justify-between text-[10px] text-slate-400 font-mono-code">
-            <span>Diễn biến tốc độ (24h qua)</span>
-            <span id="detailChartAvg">Trung bình: -- km/h</span>
-          </div>
-          <canvas id="detailHistoryCanvas" width="540" height="70" class="w-full h-16 bg-slate-950 rounded border border-slate-800"></canvas>
-        </div>
-      </div>
-
+      <div id="trang-thai" class="trang-thai">Đang tải dữ liệu…</div>
     </main>
+
+    <footer class="thanh-thoi-gian">
+      <button class="nut" id="nut-phat" title="Phát lại các lần đo">▶</button>
+      <input type="range" id="thanh-tg" min="0" max="0" value="0">
+      <span class="nhan-tg so" id="nhan-tg">--</span>
+      <button class="nut" id="nut-moi-nhat">Mới nhất</button>
+    </footer>
 
   </div>
 
-  <!-- ==================== 3. FOOTER TIME SLIDER BAR ==================== -->
-  <footer class="h-12 bg-slate-900 border-t border-slate-800 px-4 flex items-center gap-4 z-30 flex-shrink-0 text-xs">
-    <div class="flex items-center gap-2 text-slate-400 font-medium">
-      <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-      <span>Mốc thời gian đo:</span>
-    </div>
-
-    <!-- Thanh trượt thời gian qua các lần đo -->
-    <div class="flex-1 flex items-center gap-3">
-      <input type="range" id="timeSlider" min="0" max="0" value="0" oninput="doiThoiDiem(this.value)"
-             class="flex-1 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-sky-500"/>
-    </div>
-
-    <!-- Nhãn mốc thời gian hiển thị -->
-    <div class="font-mono-code text-slate-200 text-xs bg-slate-950 px-3 py-1 rounded border border-slate-800" id="timeSliderLabel">
-      Đang tải thời điểm...
-    </div>
-
-    <button onclick="quayVeMoiNhat()" class="px-2.5 py-1 rounded bg-sky-600/30 hover:bg-sky-600/50 text-sky-300 border border-sky-600/50 text-xs transition">
-      Thời điểm mới nhất
-    </button>
-  </footer>
-
-  <!-- ==================== 4. SCRIPT LOGIC MAPLIBRE GL JS (2.5D & 3D BUILDINGS) ==================== -->
-  <script>
-    let map = null;
-    let danhSachThoiDiem = [];
-    let duLieuDoanHienTai = [];
-    let markersOnMap = [];
-
-    // Tọa độ chuẩn 12 điểm đo TomTom [Lon, Lat] cho MapLibre
-    const TOA_DO_CHUAN_MAPLIBRE = {
-      "S01": [108.2279, 16.0611], // Cầu Rồng
-      "S02": [108.2268, 16.0721], // Cầu Sông Hàn
-      "S03": [108.2307, 16.0505], // Cầu Trần Thị Lý
-      "S04": [108.1798, 16.0632], // Ngã ba Huế
-      "S05": [108.2195, 16.0608], // Nguyễn Văn Linh
-      "S06": [108.1880, 16.0662], // Điện Biên Phủ
-      "S07": [108.2340, 16.0710], // Ngô Quyền
-      "S08": [108.2465, 16.0600], // Võ Nguyên Giáp
-      "S09": [108.2165, 16.0718], // Lê Duẩn
-      "S10": [108.2045, 16.0560], // Nguyễn Tri Phương
-      "S11": [108.1975, 16.0520], // Sân bay Đà Nẵng
-      "S12": [108.2390, 16.0710]  // Phạm Văn Đồng
-    };
-
-    // 1. Khởi tạo MapLibre GL JS với góc nhìn 2.5D Isometric
-    function khoiTaoBanDo3D() {
-      map = new maplibregl.Map({
-        container: 'map',
-        // Style bản đồ WebGL 3D (Khóa maxzoom: 16 ở nguồn Dark Canvas để MapLibre tự overscale khi zoom sát, triệt tiêu dòng 'Map data not yet available')
-        style: {
-          version: 8,
-          sources: {
-            'esri-dark': {
-              type: 'raster',
-              tiles: [
-                'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
-              ],
-              tileSize: 256,
-              maxzoom: 16, // Khóa ở 16 để MapLibre tự động phóng to nội suy khi zoom sâu, không gửi request vượt quá lên server
-              attribution: 'Esri, OpenStreetMap'
-            },
-            'esri-sat': {
-              type: 'raster',
-              tiles: [
-                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-              ],
-              tileSize: 256,
-              maxzoom: 19,
-              attribution: 'Esri World Imagery'
-            }
-          },
-          layers: [
-            {
-              id: 'esri-sat-layer',
-              type: 'raster',
-              source: 'esri-sat',
-              minzoom: 0,
-              maxzoom: 20,
-              layout: { visibility: 'none' }
-            },
-            {
-              id: 'esri-dark-layer',
-              type: 'raster',
-              source: 'esri-dark',
-              minzoom: 0,
-              maxzoom: 20,
-              layout: { visibility: 'visible' }
-            }
-          ]
-        },
-        center: [108.2215, 16.0625], // Tâm nhìn Hải Châu - Sông Hàn
-        zoom: 14.3,
-        pitch: 52,        // GÓC NGHIÊNG 2.5D ISOMETRIC CHUẨN IOC
-        bearing: -16,     // GÓC XOAY KHÔNG GIAN
-        antialias: true
-      });
-
-      map.on('load', () => {
-        // Tải các lớp không gian 3D
-        napLopMatNuoc();
-        napLopDuongOsm();
-        napLopToaNha3D();
-        napLopPhanLuongLines();
-
-        // Tải dữ liệu thời gian TomTom
-        taiDanhSachThoiDiem();
-      });
-    }
-
-    // 2. Nạp lớp Mặt nước Sông Hàn
-    function napLopMatNuoc() {
-      map.addSource('mat-nuoc-source', {
-        type: 'geojson',
-        data: '/api/mat-nuoc'
-      });
-
-      map.addLayer({
-        id: 'mat-nuoc-layer',
-        type: 'fill',
-        source: 'mat-nuoc-source',
-        paint: {
-          'fill-color': '#0284c7',
-          'fill-opacity': 0.35
-        }
-      });
-    }
-
-    // 3. Nạp lớp Mạng lưới đường chính OSM
-    function napLopDuongOsm() {
-      map.addSource('duong-chinh-source', {
-        type: 'geojson',
-        data: '/api/duong-chinh'
-      });
-
-      map.addLayer({
-        id: 'duong-chinh-layer',
-        type: 'line',
-        source: 'duong-chinh-source',
-        paint: {
-          'line-color': '#64748b',
-          'line-width': [
-            'match',
-            ['get', 'highway'],
-            'primary', 3.5,
-            'trunk', 4.0,
-            'motorway', 4.5,
-            1.8
-          ],
-          'line-opacity': 0.75
-        }
-      });
-    }
-
-    // 4. NẠP VÀ ĐÙN KHỐI TÒA NHÀ 3D (3D BUILDINGS EXTRUSION TỪ toa_nha.geojson)
-    function napLopToaNha3D() {
-      map.addSource('toa-nha-source', {
-        type: 'geojson',
-        data: '/api/toa-nha'
-      });
-
-      map.addLayer({
-        id: '3d-buildings-layer',
-        type: 'fill-extrusion',
-        source: 'toa-nha-source',
-        paint: {
-          // Màu sắc các tòa nhà 3D sang trọng, có đổ bóng theo độ cao
-          'fill-extrusion-color': [
-            'interpolate',
-            ['linear'],
-            ['get', 'c'],
-            8, '#334155',    // Nhà phố 2-3 tầng (8m): xám slate
-            18, '#475569',   // Tòa nhà 5-6 tầng: xám vừa
-            35, '#0284c7',   // Khách sạn cao tầng: xanh cyan
-            65, '#38bdf8'    // Cao ốc Landmark: xanh sáng
-          ],
-          'fill-extrusion-height': ['get', 'c'], // Đùn khối theo thuộc tính chiều cao mét 'c'
-          'fill-extrusion-base': 0,
-          'fill-extrusion-opacity': 0.85
-        }
-      });
-    }
-
-    // 5. Nạp nguồn tuyến phân luồng (Trống ban đầu, cập nhật khi tính toán)
-    function napLopPhanLuongLines() {
-      map.addSource('reroute-static-source', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] }
-      });
-      map.addLayer({
-        id: 'reroute-static-layer',
-        type: 'line',
-        source: 'reroute-static-source',
-        paint: {
-          'line-color': '#ef4444',
-          'line-width': 5.5,
-          'line-opacity': 0.85
-        }
-      });
-
-      map.addSource('reroute-dynamic-source', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] }
-      });
-      map.addLayer({
-        id: 'reroute-dynamic-layer',
-        type: 'line',
-        source: 'reroute-dynamic-source',
-        paint: {
-          'line-color': '#10b981',
-          'line-width': 6.5,
-          'line-opacity': 0.95,
-          'line-dasharray': [2, 1]
-        }
-      });
-    }
-
-    // 6. Tải danh sách mốc thời gian từ API /api/thoi-diem
-    function taiDanhSachThoiDiem() {
-      fetch('/api/thoi-diem')
-        .then(res => res.json())
-        .then(tsList => {
-          danhSachThoiDiem = tsList;
-          if (tsList.length > 0) {
-            const slider = document.getElementById('timeSlider');
-            slider.max = tsList.length - 1;
-            slider.value = tsList.length - 1;
-            doiThoiDiem(slider.value);
-          } else {
-            document.getElementById('timeSliderLabel').textContent = 'Chưa có dữ liệu đo';
-          }
-        })
-        .catch(err => {
-          console.error('Lỗi tải mốc thời gian:', err);
-        });
-    }
-
-    function doiThoiDiem(index) {
-      if (!danhSachThoiDiem || danhSachThoiDiem.length === 0) return;
-      const isoTime = danhSachThoiDiem[index];
-      const d = new Date(isoTime);
-      
-      const gioPhut = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-      const ngayThang = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-      document.getElementById('timeSliderLabel').textContent = `${gioPhut} · ${ngayThang}`;
-      document.getElementById('headerTime').textContent = `${gioPhut} (${ngayThang})`;
-
-      taiDuLieuCacDoan(isoTime);
-    }
-
-    function quayVeMoiNhat() {
-      if (danhSachThoiDiem.length > 0) {
-        const slider = document.getElementById('timeSlider');
-        slider.value = danhSachThoiDiem.length - 1;
-        doiThoiDiem(slider.value);
-      }
-    }
-
-    // 7. Tải dữ liệu các đoạn đo từ API /api/doan
-    function taiDuLieuCacDoan(thoiDiem) {
-      const url = thoiDiem ? `/api/doan?thoi_diem=${encodeURIComponent(thoiDiem)}` : '/api/doan';
-      fetch(url)
-        .then(res => res.json())
-        .then(data => {
-          duLieuDoanHienTai = data.doan || [];
-          veCacDiemDo3D(duLieuDoanHienTai);
-          capNhatDanhSachSidebar(duLieuDoanHienTai);
-          capNhatHeaderKPI(duLieuDoanHienTai);
-        })
-        .catch(err => {
-          console.error('Lỗi tải dữ liệu đoạn:', err);
-        });
-    }
-
-    // 8. Vẽ Marker 3D tròn lên bản đồ MapLibre
-    function veCacDiemDo3D(danhSach) {
-      // Xóa các marker cũ
-      markersOnMap.forEach(m => m.remove());
-      markersOnMap = [];
-
-      danhSach.forEach(item => {
-        const coords = TOA_DO_CHUAN_MAPLIBRE[item.segment_id];
-        if (!coords) return;
-
-        const muc = item.muc_tac || 1;
-        const curSpeed = item.current_speed !== null ? item.current_speed : '--';
-
-        const el = document.createElement('div');
-        el.className = `station-marker marker-level-${muc}`;
-        el.style.width = '28px';
-        el.style.height = '28px';
-        el.innerHTML = curSpeed;
-
-        el.onclick = () => {
-          hienThiChiTietDiem(item);
-        };
-
-        const marker = new maplibregl.Marker({ element: el })
-          .setLngLat(coords)
-          .setPopup(new maplibregl.Popup({ offset: 15 }).setHTML(`
-            <div class="text-xs space-y-1 font-sans">
-              <div class="font-bold text-white">${item.ten}</div>
-              <div class="text-slate-300">Vận tốc: <strong class="text-sky-400 font-mono-code">${curSpeed} km/h</strong> (Tự do: ${item.freeflow_speed} km/h)</div>
-              <div class="text-[10px] text-slate-400 font-mono-code">Mã đoạn: ${item.segment_id}</div>
-            </div>
-          `))
-          .addTo(map);
-
-        markersOnMap.push(marker);
-      });
-    }
-
-    // 9. Cập nhật Sidebar danh sách
-    function capNhatDanhSachSidebar(danhSach) {
-      const container = document.getElementById('segmentListContainer');
-      container.innerHTML = '';
-
-      danhSach.forEach(item => {
-        const muc = item.muc_tac || 1;
-        const cur = item.current_speed !== null ? item.current_speed : '--';
-        const free = item.freeflow_speed !== null ? item.freeflow_speed : '--';
-        const ratio = item.speed_ratio !== null ? Math.round(item.speed_ratio * 100) : 100;
-        
-        const colors = {
-          1: 'text-emerald-400 bg-emerald-950/40 border-emerald-800/50',
-          2: 'text-amber-400 bg-amber-950/40 border-amber-800/50',
-          3: 'text-orange-400 bg-orange-950/40 border-orange-800/50',
-          4: 'text-red-400 bg-red-950/40 border-red-800/50'
-        };
-
-        const div = document.createElement('div');
-        div.className = "p-2 rounded-lg bg-slate-950 border border-slate-800/80 hover:border-slate-700 cursor-pointer transition flex items-center justify-between";
-        div.onclick = () => {
-          const coords = TOA_DO_CHUAN_MAPLIBRE[item.segment_id];
-          if (coords) {
-            map.flyTo({ center: coords, zoom: 16, pitch: 58 });
-          }
-          hienThiChiTietDiem(item);
-        };
-
-        div.innerHTML = `
-          <div class="flex-1 pr-2">
-            <div class="text-xs font-medium text-slate-200 flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full ${muc === 4 ? 'bg-red-400' : (muc === 1 ? 'bg-emerald-400' : 'bg-amber-400')}"></span>
-              <span class="truncate">${item.ten}</span>
-            </div>
-            <div class="text-[10px] text-slate-500 font-mono-code mt-0.5">${item.segment_id} · Tỷ lệ: ${ratio}%</div>
-          </div>
-          <div class="text-right font-mono-code">
-            <span class="px-2 py-0.5 rounded text-[11px] font-bold border ${colors[muc]}">${cur}</span>
-            <div class="text-[9px] text-slate-500 mt-0.5">/ ${free} km/h</div>
-          </div>
-        `;
-        container.appendChild(div);
-      });
-    }
-
-    function capNhatHeaderKPI(danhSach) {
-      if (!danhSach || danhSach.length === 0) return;
-      const speeds = danhSach.filter(d => d.current_speed !== null).map(d => d.current_speed);
-      const avg = speeds.length > 0 ? (speeds.reduce((a,b)=>a+b, 0) / speeds.length).toFixed(1) : '--';
-      const congested = danhSach.filter(d => d.muc_tac >= 3).length;
-
-      document.getElementById('headerAvgSpeed').textContent = `${avg} km/h`;
-      document.getElementById('headerCongestedCount').textContent = `${congested} / ${danhSach.length} điểm`;
-    }
-
-    // 10. Hiển thị chi tiết điểm đo & Vẽ biểu đồ
-    function hienThiChiTietDiem(item) {
-      const panel = document.getElementById('detailPopupPanel');
-      panel.classList.remove('hidden');
-
-      document.getElementById('detailSegName').textContent = item.ten;
-      document.getElementById('detailSegId').textContent = item.segment_id;
-      document.getElementById('detailCurSpeed').textContent = `${item.current_speed || '--'} km/h`;
-      document.getElementById('detailFreeSpeed').textContent = `${item.freeflow_speed || '--'} km/h`;
-      document.getElementById('detailRatio').textContent = item.speed_ratio ? `${Math.round(item.speed_ratio * 100)}%` : '--';
-      
-      const muc = item.muc_tac || 1;
-      const dotColors = { 1: '#10b981', 2: '#eab308', 3: '#f97316', 4: '#ef4444' };
-      document.getElementById('detailColorDot').style.backgroundColor = dotColors[muc];
-
-      fetch(`/api/doan/${item.segment_id}/chuoi-thoi-gian`)
-        .then(res => res.json())
-        .then(data => {
-          veBieuDoLichSu(data.diem || []);
-        })
-        .catch(err => {
-          console.error('Lỗi chuỗi thời gian:', err);
-        });
-    }
-
-    function dongDetailPanel() {
-      document.getElementById('detailPopupPanel').classList.add('hidden');
-    }
-
-    function veBieuDoLichSu(diemList) {
-      const canvas = document.getElementById('detailHistoryCanvas');
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      if (!diemList || diemList.length === 0) return;
-
-      const points = diemList.slice(-30);
-      const speeds = points.map(p => p.current_speed || 0);
-      const free = points[0].freeflow_speed || 40;
-      const maxVal = Math.max(...speeds, free, 40) + 10;
-
-      const avg = (speeds.reduce((a,b)=>a+b, 0) / speeds.length).toFixed(1);
-      document.getElementById('detailChartAvg').textContent = `Trung bình: ${avg} km/h (Tự do: ${free} km/h)`;
-
-      const W = canvas.width;
-      const H = canvas.height;
-      const padL = 20, padR = 20, padT = 10, padB = 15;
-
-      const freeY = padT + (1 - free / maxVal) * (H - padT - padB);
-      ctx.strokeStyle = '#475569';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(padL, freeY); ctx.lineTo(W - padR, freeY);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      ctx.strokeStyle = '#0284c7';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      points.forEach((p, idx) => {
-        const x = padL + (idx / (points.length - 1)) * (W - padL - padR);
-        const y = padT + (1 - (p.current_speed || 0) / maxVal) * (H - padT - padB);
-        if (idx === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.stroke();
-
-      points.forEach((p, idx) => {
-        const x = padL + (idx / (points.length - 1)) * (W - padL - padR);
-        const y = padT + (1 - (p.current_speed || 0) / maxVal) * (H - padT - padB);
-        const s = p.current_speed || 0;
-        ctx.fillStyle = s < 15 ? '#ef4444' : (s < 25 ? '#eab308' : '#10b981');
-        ctx.fillRect(x - 2, y - 2, 4, 4);
-      });
-    }
-
-    // 11. TÍNH TOÁN VÀ VẼ PHÂN LUỒNG TRÊN ĐỒ THỊ 3D
-    function tinhToanPhanLuong() {
-      const origin = document.getElementById('selectOrigin').value;
-      const dest = document.getElementById('selectDestination').value;
-      const sliderVal = document.getElementById('timeSlider').value;
-      const thoiDiem = danhSachThoiDiem[sliderVal] || null;
-
-      const url = `/api/phan-luong?diem_di=${origin}&diem_den=${dest}` + (thoiDiem ? `&thoi_diem=${encodeURIComponent(thoiDiem)}` : '');
-
-      fetch(url)
-        .then(res => res.json())
-        .then(data => {
-          capNhatKetQuaPhanLuong(data);
-        })
-        .catch(err => {
-          console.error('Lỗi tính phân luồng:', err);
-        });
-    }
-
-    function capNhatKetQuaPhanLuong(data) {
-      const t = data.tinh;
-      const d = data.dong;
-
-      document.getElementById('resStaticStatus').textContent = t.muc_do_nghen;
-      document.getElementById('resStaticTime').textContent = `${t.thoi_gian_phut} phút`;
-      document.getElementById('resStaticSpeed').textContent = `Tốc độ: ${t.toc_do_tb_kmh} km/h`;
-
-      document.getElementById('resDynamicRouteName').textContent = `Điều hướng ${d.qua_cau}`;
-      document.getElementById('resDynamicTime').textContent = `${d.thoi_gian_phut} phút`;
-      document.getElementById('resDynamicKm').textContent = `Khoảng cách: ${d.do_dai_km} km`;
-      document.getElementById('resDynamicSpeed').textContent = `Tốc độ: ${d.toc_do_tb_kmh} km/h`;
-
-      document.getElementById('resSavingMinutes').textContent = `Tiết kiệm ${d.tiet_kiem_phut} phút (${d.phan_tram_giam_tre}%)`;
-
-      // Chuyển đổi tọa độ [Lat, Lon] -> [Lon, Lat] cho MapLibre
-      const coordsStatic = t.toa_do.map(p => [p[1], p[0]]);
-      const coordsDynamic = d.toa_do.map(p => [p[1], p[0]]);
-
-      map.getSource('reroute-static-source').setData({
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: coordsStatic }
-      });
-
-      map.getSource('reroute-dynamic-source').setData({
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: coordsDynamic }
-      });
-
-      // Fly camera ngắm góc nhìn 2.5D đẹp mắt bao quát lộ trình
-      map.flyTo({
-        center: [108.2230, 16.0640],
-        zoom: 14.5,
-        pitch: 55,
-        bearing: -12
-      });
-    }
-
-    // 12. Điều khiển góc nhìn 2.5D & Zoom
-    function mapPitchUp() {
-      map.easeTo({ pitch: 58, bearing: -18, duration: 600 });
-    }
-    function mapPitchFlat() {
-      map.easeTo({ pitch: 0, bearing: 0, duration: 600 });
-    }
-    function mapZoomIn() { map.zoomIn(); }
-    function mapZoomOut() { map.zoomOut(); }
-    function resetHaiChauView() {
-      map.flyTo({ center: [108.2215, 16.0625], zoom: 14.3, pitch: 52, bearing: -16, duration: 800 });
-    }
-
-    // Chuyển đổi nền bản đồ Tối (GIS) và Vệ tinh (Satellite)
-    let cheDoNen = 'dark';
-    function chuyenNenBanDo() {
-      const btn = document.getElementById('btnBasemapToggle');
-      if (cheDoNen === 'dark') {
-        cheDoNen = 'sat';
-        map.setLayoutProperty('esri-dark-layer', 'visibility', 'none');
-        map.setLayoutProperty('esri-sat-layer', 'visibility', 'visible');
-        if (btn) {
-          btn.innerHTML = '🌃';
-          btn.title = 'Đang bật ảnh Vệ tinh. Bấm để về bản đồ nền Tối GIS';
-        }
-      } else {
-        cheDoNen = 'dark';
-        map.setLayoutProperty('esri-sat-layer', 'visibility', 'none');
-        map.setLayoutProperty('esri-dark-layer', 'visibility', 'visible');
-        if (btn) {
-          btn.innerHTML = '🛰️';
-          btn.title = 'Đang bật nền Tối GIS. Bấm để chuyển sang ảnh Vệ tinh';
-        }
-      }
-    }
-
-    // 13. Bật/Tắt các lớp
-    function toggle3dBuildings() {
-      const visible = document.getElementById('chk3dBuildings').checked;
-      map.setLayoutProperty('3d-buildings-layer', 'visibility', visible ? 'visible' : 'none');
-    }
-    function toggleOsmRoads() {
-      const visible = document.getElementById('chkOsmRoads').checked;
-      map.setLayoutProperty('duong-chinh-layer', 'visibility', visible ? 'visible' : 'none');
-    }
-    function toggleWaterLayer() {
-      const visible = document.getElementById('chkWaterLayer').checked;
-      map.setLayoutProperty('mat-nuoc-layer', 'visibility', visible ? 'visible' : 'none');
-    }
-
-    function locTheoMuc(muc) {
-      if (!duLieuDoanHienTai) return;
-      const loc = duLieuDoanHienTai.filter(d => d.muc_tac === muc);
-      document.getElementById('filterCountLabel').textContent = `${loc.length} đoạn`;
-      veCacDiemDo3D(loc);
-      capNhatDanhSachSidebar(loc);
-    }
-
-    function chuyenTab(tabName) {
-      ['Monitor', 'Reroute', 'Camera'].forEach(t => {
-        document.getElementById(`tabContent${t}`).classList.add('hidden');
-        document.getElementById(`tabBtn${t}`).className = "flex-1 py-1.5 text-xs font-medium rounded-md transition text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5";
-      });
-
-      const activeName = tabName.charAt(0).toUpperCase() + tabName.slice(1);
-      document.getElementById(`tabContent${activeName}`).classList.remove('hidden');
-      document.getElementById(`tabBtn${activeName}`).className = "flex-1 py-1.5 text-xs font-medium rounded-md transition text-sky-400 bg-slate-800 shadow-sm flex items-center justify-center gap-1.5";
-
-      if (tabName === 'reroute') {
-        tinhToanPhanLuong();
-      }
-    }
-
-    function toggleSidebar() {
-      const sb = document.getElementById('sidebar');
-      const btn = document.getElementById('btnToggleSidebar');
-      if (sb.style.transform === 'translateX(-100%)') {
-        sb.style.transform = 'translateX(0)';
-        btn.textContent = '‹';
-      } else {
-        sb.style.transform = 'translateX(-100%)';
-        btn.textContent = '›';
-      }
-    }
-
-    function tailaiDuLieu() { taiDanhSachThoiDiem(); }
-
-    // 14. Video Canvas Camera AI Simulation
-    const camCanvas = document.getElementById('cameraCanvas');
-    const camCtx = camCanvas.getContext('2d');
-    let aiBoxes = [];
-    for (let i = 0; i < 8; i++) {
-      aiBoxes.push({
-        x: Math.random() * 260 + 20,
-        y: Math.random() * 110 + 20,
-        w: Math.random() > 0.35 ? 14 : 26,
-        h: Math.random() > 0.35 ? 18 : 32,
-        speed: Math.random() * 1.1 + 0.6,
-        type: Math.random() > 0.3 ? 'moto' : 'car',
-        id: Math.floor(Math.random() * 900 + 100)
-      });
-    }
-
-    function renderCam() {
-      camCtx.fillStyle = '#090e17';
-      camCtx.fillRect(0, 0, camCanvas.width, camCanvas.height);
-
-      camCtx.strokeStyle = '#1e293b';
-      camCtx.lineWidth = 1;
-      camCtx.setLineDash([6, 6]);
-      camCtx.beginPath();
-      camCtx.moveTo(100, 0); camCtx.lineTo(85, 180);
-      camCtx.moveTo(220, 0); camCtx.lineTo(235, 180);
-      camCtx.stroke();
-
-      camCtx.strokeStyle = '#ef4444';
-      camCtx.lineWidth = 2;
-      camCtx.setLineDash([]);
-      camCtx.beginPath();
-      camCtx.moveTo(20, 110); camCtx.lineTo(300, 110);
-      camCtx.stroke();
-
-      aiBoxes.forEach(b => {
-        b.y += b.speed * 0.7;
-        if (b.y > 180) { b.y = 0; b.x = Math.random() * 260 + 20; }
-        camCtx.strokeStyle = b.type === 'moto' ? '#38bdf8' : '#fbbf24';
-        camCtx.lineWidth = 1.5;
-        camCtx.strokeRect(b.x, b.y, b.w, b.h);
-
-        camCtx.fillStyle = b.type === 'moto' ? 'rgba(56, 189, 248, 0.85)' : 'rgba(251, 191, 36, 0.85)';
-        camCtx.fillRect(b.x, b.y - 8, b.w, 8);
-        camCtx.fillStyle = '#090e17';
-        camCtx.font = 'bold 7px sans-serif';
-        camCtx.fillText(b.type === 'moto' ? `moto #${b.id}` : `car #${b.id}`, b.x + 1, b.y - 2);
-      });
-
-      requestAnimationFrame(renderCam);
-    }
-    requestAnimationFrame(renderCam);
-
-    window.addEventListener('DOMContentLoaded', () => {
-      khoiTaoBanDo3D();
-    });
-  </script>
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <script type="module" src="/static/js/app.js"></script>
 </body>
 </html>
